@@ -378,7 +378,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Error del servidor (${res.status})`);
+        throw new Error(errorData.error || (res.status === 429
+          ? 'El tutor está atendiendo a muchas personas en este momento. Espera un minuto y vuelve a intentarlo.'
+          : res.status >= 500
+            ? 'El tutor tuvo un problema técnico. Intenta de nuevo en unos segundos.'
+            : `Error del servidor (${res.status})`));
       }
 
       const tipo = res.headers.get('content-type') || '';
