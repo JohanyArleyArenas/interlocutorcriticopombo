@@ -11,9 +11,41 @@ import {
   Image as ImageIcon, 
   Globe, 
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  MessageSquareQuote,
+  Search,
+  Scale,
+  CheckCircle2,
+  Cpu,
+  Upload
 } from 'lucide-react';
 import { AGENTE, ModoConfig } from '../parametros.ts';
+
+// Presentación de cada modo en la tarjeta de bienvenida del chat
+const ICONOS_MODO: Record<string, React.ElementType> = {
+  socratico: MessageSquareQuote,
+  explorar: Search,
+  argumento: Scale,
+  verificar: CheckCircle2,
+  auditar: Cpu,
+  escrito: FileText,
+};
+
+const PASOS_MODO: Record<string, string[]> = {
+  socratico: ['Dime el tema y la materia', 'Te explico un poco y te hago una pregunta', 'Avanzas paso a paso hasta explicarlo con tus palabras'],
+  explorar: ['Escribe tu pregunta o hipótesis', 'Buscamos y contrastamos información', 'Llegas a tu propia conclusión'],
+  argumento: ['Escribe tu tesis y tus razones', 'La pongo a prueba con preguntas y objeciones', 'Fortaleces o ajustas tu argumento'],
+  verificar: ['Pega la afirmación y dónde la viste', 'La contrastamos con evidencia', 'Recibes un veredicto con sus razones'],
+  auditar: ['Pega la pregunta y la respuesta de la otra IA', 'Revisamos errores, vacíos y sesgos', 'Decides qué conservar y qué no'],
+  escrito: ['Sube tu archivo o pega tu texto', 'Señalo fortalezas y aspectos por mejorar', 'Tú haces las correcciones'],
+};
+
+const EJEMPLOS_MODO: Record<string, string[]> = {
+  socratico: ['Quiero entender las ecuaciones de segundo grado', 'Quiero aprender qué es la fotosíntesis'],
+  explorar: ['¿Las redes sociales afectan la concentración de los jóvenes?'],
+  argumento: ['Tesis: el uniforme escolar debería ser opcional, porque…'],
+  verificar: ['«Tomar agua fría después de comer es peligroso». Lo vi en WhatsApp.'],
+};
 
 export interface ChatArchivo {
   nombre: string;
@@ -83,6 +115,21 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const [espacioFinal, setEspacioFinal] = useState(0);
+
+  // Barra del modo: se oculta al bajar y reaparece al subir (el encabezado general queda fijo)
+  const [barraVisible, setBarraVisible] = useState(true);
+  const ultimoScrollRef = useRef(0);
+  const manejarScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const actual = e.currentTarget.scrollTop;
+    const delta = actual - ultimoScrollRef.current;
+    if (actual < 24) {
+      setBarraVisible(true);
+      ultimoScrollRef.current = actual;
+    } else if (Math.abs(delta) > 6) {
+      setBarraVisible(delta < 0);
+      ultimoScrollRef.current = actual;
+    }
+  };
 
   const getContenedor = () =>
     messagesEndRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
@@ -308,13 +355,17 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
 
   return (
     <div 
-      className="flex-1 flex flex-col min-h-0 w-full bg-transparent overflow-hidden"
+      className="relative flex-1 flex flex-col min-h-0 w-full bg-transparent overflow-hidden"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* Barra superior del chat: botón '‹ Modos' a la izquierda y el título centrado */}
-      <div className="bg-[var(--color-superficie)]/80 backdrop-blur-md border-b border-[var(--color-separador)] px-4 h-[50px] shrink-0 z-20">
+      <div
+        className="absolute top-0 inset-x-0 bg-[var(--color-superficie)]/80 backdrop-blur-md border-b border-[var(--color-separador)] px-4 h-[50px] z-20 transition-transform duration-200 ease-out"
+        style={{ transform: barraVisible ? 'translateY(0)' : 'translateY(-100%)' }}
+        onFocus={() => setBarraVisible(true)}
+      >
         <div className="max-w-[720px] mx-auto h-full flex items-center justify-between relative">
           {/* Botón ‹ Modos */}
           <button
@@ -351,7 +402,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
       )}
 
       {/* Hilo de mensajes scrollable */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-[74px] pb-6 space-y-6" onScroll={manejarScroll}>
         <div ref={listRef} className="max-w-[720px] mx-auto space-y-6">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
@@ -386,6 +437,98 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                       {msg.text}
                     </div>
                   )}
+                </div>
+              );
+            }
+
+            // Tarjeta de bienvenida del modo (instrucciones iniciales)
+            if (msg.id === 'greeting') {
+              const IconoModo = ICONOS_MODO[modeKey] || MessageSquareQuote;
+              const pasos = PASOS_MODO[modeKey] || [];
+              const ejemplos = EJEMPLOS_MODO[modeKey] || [];
+              const sinMensajes = messages.length === 1;
+              return (
+                <div key={msg.id} className="message-appear rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+                  <div className="p-5 sm:p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-[var(--color-acento)]/10 text-[var(--color-acento)] flex items-center justify-center shrink-0">
+                        <IconoModo className="w-6 h-6" aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-[19px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
+                          {modo.titulo}
+                        </h3>
+                        {modo.descripcion && (
+                          <p className="text-[15px] text-[var(--color-secundario)] leading-relaxed mt-1">
+                            {modo.descripcion}
+                          </p>
+                        )}
+                        {(modo.busqueda || modo.adjuntos) && (
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {modo.busqueda && (
+                              <span className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] text-[var(--color-secundario)]">
+                                <Globe className="w-3.5 h-3.5" aria-hidden="true" /> Busca en Google
+                              </span>
+                            )}
+                            {modo.adjuntos && (
+                              <span className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] text-[var(--color-secundario)]">
+                                <Paperclip className="w-3.5 h-3.5" aria-hidden="true" /> Acepta archivos
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {pasos.length > 0 && (
+                      <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label="Cómo funciona">
+                        {pasos.map((paso, i) => (
+                          <li key={i} className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-2xl bg-[var(--color-fondo)] px-3.5 py-3">
+                            <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[12px] font-semibold flex items-center justify-center shrink-0">
+                              {i + 1}
+                            </span>
+                            <span className="text-[14px] leading-snug text-[var(--color-texto)]">{paso}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+
+                  <div className="px-5 sm:px-6 py-4 border-t border-[var(--color-separador)]/60">
+                    <p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--color-acento)] mb-1.5">
+                      Para empezar
+                    </p>
+                    <div className="prose-apple select-text">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                    </div>
+
+                    {sinMensajes && (ejemplos.length > 0 || modo.adjuntos) && (
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {ejemplos.map((ej) => (
+                          <button
+                            key={ej}
+                            type="button"
+                            onClick={() => {
+                              setInputText(ej);
+                              textareaRef.current?.focus();
+                            }}
+                            className="text-left text-[14px] leading-snug px-3.5 py-2 min-h-[44px] rounded-2xl border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[var(--color-texto)] hover:border-[var(--color-acento)] transition-colors"
+                          >
+                            {ej}
+                          </button>
+                        ))}
+                        {modo.adjuntos && (
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 min-h-[44px] rounded-2xl bg-[var(--color-acento)] text-white hover:opacity-90 transition-opacity"
+                          >
+                            <Upload className="w-4 h-4" aria-hidden="true" /> Subir mi escrito
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             }

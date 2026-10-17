@@ -32,7 +32,15 @@ function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
 
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
-    const limpio = nombre.replace(/\s+/g, ' ').trim();
+    // Nombre normalizado: espacios simples y mayúscula inicial en cada palabra,
+    // para que «juan  pérez» y «Juan Pérez» queden registrados igual.
+    const limpio = nombre
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleLowerCase('es')
+      .split(' ')
+      .map((p) => p.charAt(0).toLocaleUpperCase('es') + p.slice(1))
+      .join(' ');
     if (limpio.split(' ').length < 2) {
       setAviso('Escribe tu nombre y tu apellido.');
       return;
