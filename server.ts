@@ -127,10 +127,11 @@ async function descubrirModelos(): Promise<void> {
     const ordenar = (lista: string[]) => lista.sort((a, b) => version(b) - version(a));
     const normales = ordenar(encontrados.filter((n) => !n.includes('-lite') && n !== 'gemini-flash-latest'));
     const ligeros = ordenar(encontrados.filter((n) => n.includes('-lite') && n !== 'gemini-flash-lite-latest'));
+    // Orden: el Flash principal y enseguida el Flash-Lite (el más rápido); luego las demás versiones
     const cascada = [
       ...(encontrados.includes('gemini-flash-latest') ? ['gemini-flash-latest'] : []),
-      ...normales,
       ...(encontrados.includes('gemini-flash-lite-latest') ? ['gemini-flash-lite-latest'] : []),
+      ...normales,
       ...ligeros,
     ].slice(0, 8);
     if (cascada.length) modelosDescubiertos = cascada;
@@ -339,21 +340,35 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     };
     // Con streaming devuelve un objeto con la misma forma que generateContent (text, candidates, modelVersion)
     const generar = async (model: string, cfg: any): Promise<any> => {
-      if (!quiereStream) return ai.models.generateContent({ model, contents, config: cfg });
-      const flujo = await ai.models.generateContentStream({ model, contents, config: cfg });
-      let texto = '';
-      let ultimo: any = null;
-      for await (const parte of flujo) {
-        ultimo = parte;
-        const delta = parte.text || '';
-        if (delta) {
-          if (!texto && textoEnviado) enviarEvento({ t: 'reinicio' });
-          texto += delta;
-          textoEnviado = true;
-          enviarEvento({ t: 'delta', text: delta });
+      // Si un modelo tarda demasiado en empezar a responder (saturado o casi sin cupo), se corta y se pasa al siguiente
+      const controlador = new AbortController();
+      const limiteMs = quiereStream ? 10_000 : 25_000;
+      const temporizador = setTimeout(() => controlador.abort(), limiteMs);
+      const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
+      try {
+        if (!quiereStream) return await ai.models.generateContent({ model, contents, config: cfgConCorte });
+        const tInicioFlujo = Date.now();
+        const flujo = await ai.models.generateContentStream({ model, contents, config: cfgConCorte });
+        let texto = '';
+        let ultimo: any = null;
+        for await (const parte of flujo) {
+          if (!ultimo) {
+            clearTimeout(temporizador);
+            console.log(`[Primer texto] ${model} en ${Date.now() - tInicioFlujo} ms`);
+          }
+          ultimo = parte;
+          const delta = parte.text || '';
+          if (delta) {
+            if (!texto && textoEnviado) enviarEvento({ t: 'reinicio' });
+            texto += delta;
+            textoEnviado = true;
+            enviarEvento({ t: 'delta', text: delta });
+          }
         }
+        return { text: texto, candidates: ultimo?.candidates, modelVersion: ultimo?.modelVersion };
+      } finally {
+        clearTimeout(temporizador);
       }
-      return { text: texto, candidates: ultimo?.candidates, modelVersion: ultimo?.modelVersion };
     };
 
     // Attempt models with 429/503 fallback, 1.5s backoff, and 404 immediate skip
@@ -408,6 +423,12 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         }
       } catch (err: any) {
         lastError = err;
+        // Modelo demasiado lento: se aparta 3 minutos y se pasa al siguiente sin esperar
+        if (err?.name === 'AbortError' || /abort/i.test(String(err?.message || ''))) {
+          console.log(`[Lento] ${model} no empezó a responder a tiempo; se pasa al siguiente`);
+          agotadoHasta.set(claveCupo(model, !!modo.busqueda), Date.now() + 3 * 60_000);
+          continue;
+        }
         let cupoLargo = false;
         const status = err?.status || err?.statusCode || (typeof err?.message === 'string' && err.message.includes('429') ? 429 : (typeof err?.message === 'string' && err.message.includes('404') ? 404 : 500));
 
