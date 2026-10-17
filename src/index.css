@@ -145,7 +145,7 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
 }
 
 .message-appear {
-  animation: messageFadeIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: messageFadeIn 500ms cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
 /* Transición suave al entrar a cada vista (inicio ↔ modo) */
@@ -303,4 +303,72 @@ html.chat-activo body {
 /* Con el teclado abierto no hace falta el margen de la barra de inicio del iPhone */
 html.teclado-abierto .zona-entrada {
   padding-bottom: 0.5rem !important;
+}
+
+
+/* ===== Movimiento de entrada (encabezado, ingreso, títulos) ===== */
+@keyframes entradaSuave {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes entradaLogo {
+  from { opacity: 0; transform: scale(0.9) rotate(-4deg); }
+  to { opacity: 1; transform: none; }
+}
+.anim-entrada {
+  animation: entradaSuave 900ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+.anim-logo {
+  animation: entradaLogo 750ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Encabezado: la barra baja, el escudo entra girando y los nombres se deslizan con un desenfoque que se aclara */
+@keyframes encabezadoBaja {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: none; }
+}
+/* Un solo movimiento continuo, sin rebote: entra girando y se detiene suavemente en su lugar */
+@keyframes escudoEntra {
+  from { opacity: 0; transform: translateX(-20px) scale(0.75) rotate(-12deg); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes tituloEntra {
+  from { opacity: 0; transform: translateX(-22px); filter: blur(6px); letter-spacing: 0.06em; }
+  to { opacity: 1; transform: none; filter: blur(0); letter-spacing: normal; }
+}
+.anim-encabezado {
+  animation: encabezadoBaja 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-escudo {
+  animation: escudoEntra 1200ms cubic-bezier(0.25, 1, 0.5, 1) 250ms both;
+}
+.anim-titulo {
+  animation: tituloEntra 1200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Caja «Antes de empezar»: sube con el mismo estilo del encabezado (desenfoque que se aclara) */
+@keyframes tarjetaEntra {
+  from { opacity: 0; transform: translateY(32px) scale(0.96); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+.anim-tarjeta {
+  animation: tarjetaEntra 1400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ===== Aparición al bajar: las tarjetas van entrando a medida que se ven ===== */
+@keyframes revelarCarta {
+  from { opacity: 0; transform: translateY(36px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.revelar {
+  opacity: 0;
+}
+.revelar.visible {
+  opacity: 1;
+  animation: revelarCarta 1100ms cubic-bezier(0.25, 1, 0.5, 1) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-entrada, .anim-logo, .anim-encabezado, .anim-escudo, .anim-titulo, .anim-tarjeta { animation: vistaFade 200ms ease both; }
+  .revelar, .revelar.visible { opacity: 1; animation: none; }
 }

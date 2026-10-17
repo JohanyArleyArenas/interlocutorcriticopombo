@@ -6,7 +6,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onBackToModos }) => {
   return (
-    <header className="bg-[var(--color-superficie)]/85 backdrop-blur-md border-b border-[var(--color-separador)] sticky top-0 z-30 transition-colors">
+    <header className="anim-encabezado bg-[var(--color-superficie)]/85 backdrop-blur-md border-b border-[var(--color-separador)] sticky top-0 z-30 transition-colors">
       <div className="max-w-[820px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
         {/* Left: Escudo + Nombres */}
         <div
@@ -27,17 +27,17 @@ export const Header: React.FC<HeaderProps> = ({ onBackToModos }) => {
           <img
             src="/escudo-liceo.png"
             alt="Escudo Liceo Superior Rafael Pombo"
-            className="h-[44px] w-auto object-contain shrink-0"
+            className="anim-escudo h-[44px] w-auto object-contain shrink-0"
           />
 
           <div className="flex flex-col justify-center">
             <span
-              className="text-[20px] leading-tight text-[#538135] dark:text-[#7FB069]"
-              style={{ fontFamily: 'var(--font-gotica)' }}
+              className="anim-titulo text-[20px] leading-tight text-[#538135] dark:text-[#7FB069]"
+              style={{ fontFamily: 'var(--font-gotica)', animationDelay: '450ms' }}
             >
               Liceo Superior Rafael Pombo
             </span>
-            <span className="text-[13px] text-[var(--color-secundario)] font-normal leading-tight tracking-tight mt-0.5">
+            <span className="anim-titulo text-[13px] text-[var(--color-secundario)] font-normal leading-tight tracking-tight mt-0.5" style={{ animationDelay: '700ms' }}>
               Interlocutor Crítico
             </span>
           </div>

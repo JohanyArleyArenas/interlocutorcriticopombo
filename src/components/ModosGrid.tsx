@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { 
   MessageSquareQuote, 
   Search, 
@@ -27,20 +27,46 @@ export const ModosGrid: React.FC<ModosGridProps> = ({ onSelectModo }) => {
 
   const modeKeys = ['socratico', 'explorar', 'argumento', 'verificar', 'auditar', 'escrito'];
 
+  // Las tarjetas aparecen con un movimiento suave a medida que entran en pantalla al bajar
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const tarjetas = Array.from(gridRef.current?.querySelectorAll<HTMLElement>('.revelar') ?? []);
+    if (typeof IntersectionObserver === 'undefined') {
+      tarjetas.forEach((t) => t.classList.add('visible'));
+      return;
+    }
+    const observador = new IntersectionObserver(
+      (entradas) => {
+        entradas.forEach((entrada) => {
+          // Al subir o bajar, cada tarjeta vuelve a aparecer con suavidad cuando entra en pantalla
+          // (solo se "apaga" cuando ya salió por completo, para que no parpadee en el borde)
+          if (entrada.isIntersecting && entrada.intersectionRatio >= 0.12) {
+            entrada.target.classList.add('visible');
+          } else if (!entrada.isIntersecting) {
+            entrada.target.classList.remove('visible');
+          }
+        });
+      },
+      { threshold: [0, 0.12], rootMargin: '0px 0px -30px 0px' }
+    );
+    tarjetas.forEach((t) => observador.observe(t));
+    return () => observador.disconnect();
+  }, []);
+
   return (
     <div className="w-full max-w-[820px] mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center">
       {/* Hero: Título y una sola línea */}
       <div className="flex flex-col items-center text-center mb-9 sm:mb-11 select-none">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--color-texto)]">
+        <h1 className="anim-entrada text-3xl sm:text-4xl font-bold tracking-tight text-[var(--color-texto)]">
           Interlocutor Crítico
         </h1>
-        <p className="text-[17px] sm:text-[18px] text-[var(--color-secundario)] font-normal mt-1.5">
+        <p className="anim-entrada text-[17px] sm:text-[18px] text-[var(--color-secundario)] font-normal mt-1.5" style={{ animationDelay: '120ms' }}>
           ¿Qué quieres hacer hoy?
         </p>
       </div>
 
       {/* Cuadrícula de 6 tarjetas: 2 columnas en escritorio, 1 en móvil */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 w-full items-stretch">
+      <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 w-full items-stretch">
         {modeKeys.map((key, i) => {
           const modo = AGENTE.modos[key] as ModoConfig;
           if (!modo) return null;
@@ -58,8 +84,8 @@ export const ModosGrid: React.FC<ModosGridProps> = ({ onSelectModo }) => {
                   onSelectModo(key);
                 }
               }}
-              className="apple-card tarjeta-entrada group text-left cursor-pointer h-full flex flex-col active:scale-[0.98] transition-transform"
-              style={{ animationDelay: `${80 + i * 50}ms` }}
+              className="apple-card revelar group text-left cursor-pointer h-full flex flex-col active:scale-[0.98] transition-transform"
+              style={{ animationDelay: `${(i % 2) * 160}ms` }}
             >
               <div className="flex items-center justify-between gap-2 h-[44px]">
                 {/* Icono en cuadro redondeado */}

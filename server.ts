@@ -107,6 +107,40 @@ function marcarAgotado(model: string, conBusqueda: boolean, mensaje: string): nu
 const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 const SEARCH_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 
+// ===== Modelos disponibles =====
+// En el plan gratuito cada modelo tiene su propio cupo diario y por minuto. Al arrancar se
+// consultan los modelos Flash disponibles en la cuenta y se usan todos en cascada: cuando uno
+// se queda sin cupo, responde el siguiente.
+let modelosDescubiertos: string[] = [];
+async function descubrirModelos(): Promise<void> {
+  try {
+    const encontrados: string[] = [];
+    const pager: any = await ai.models.list({ config: { pageSize: 200 } } as any);
+    for await (const mod of pager) {
+      const nombre = String(mod?.name || '').replace(/^models\//, '');
+      const acciones: string[] = Array.isArray(mod?.supportedActions) ? mod.supportedActions : [];
+      if (!/^gemini-([0-9.]+-)?flash(-lite)?(-latest)?$/.test(nombre)) continue;
+      if (acciones.length && !acciones.includes('generateContent')) continue;
+      encontrados.push(nombre);
+    }
+    const version = (n: string) => parseFloat((n.match(/gemini-([0-9.]+)-/) || [])[1] || '0');
+    const ordenar = (lista: string[]) => lista.sort((a, b) => version(b) - version(a));
+    const normales = ordenar(encontrados.filter((n) => !n.includes('-lite') && n !== 'gemini-flash-latest'));
+    const ligeros = ordenar(encontrados.filter((n) => n.includes('-lite') && n !== 'gemini-flash-lite-latest'));
+    const cascada = [
+      ...(encontrados.includes('gemini-flash-latest') ? ['gemini-flash-latest'] : []),
+      ...normales,
+      ...(encontrados.includes('gemini-flash-lite-latest') ? ['gemini-flash-lite-latest'] : []),
+      ...ligeros,
+    ].slice(0, 8);
+    if (cascada.length) modelosDescubiertos = cascada;
+    console.log('[Modelos] Cascada disponible:', (modelosDescubiertos.length ? modelosDescubiertos : CANDIDATE_MODELS).join(', '));
+  } catch (e: any) {
+    console.log('[Modelos] No se pudieron listar los modelos; se usa la lista fija.', e?.message || e);
+  }
+}
+descubrirModelos();
+
 // ===== Límite de uso (protege el cupo de la API) =====
 // Por sesión de estudiante y, de forma más generosa, por red (todo un salón comparte la misma IP).
 const usoReciente = new Map<string, number[]>();
@@ -264,14 +298,16 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       temperature: esCuantitativo ? Math.min(temperaturaBase, 0.3) : temperaturaBase,
       // El razonamiento interno también consume tokens de salida: se deja margen para no cortar respuestas
       maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + (esCuantitativo ? 3000 : 1500),
-      thinkingConfig: { thinkingLevel: (esCuantitativo ? 'MEDIUM' : 'LOW') as any },
+      // El diálogo socrático sin cálculos es conversación breve: piensa lo mínimo para responder más rápido
+      thinkingConfig: { thinkingLevel: (esCuantitativo ? 'MEDIUM' : modeKey === 'socratico' ? 'MINIMAL' : 'LOW') as any },
     };
 
     if (modo.busqueda) {
       config.tools = [{ googleSearch: {} }];
     }
 
-    const modelsToTry = modo.busqueda ? SEARCH_MODELS : CANDIDATE_MODELS;
+    const listaBase = modo.busqueda ? SEARCH_MODELS : CANDIDATE_MODELS;
+    const modelsToTry = modelosDescubiertos.length ? modelosDescubiertos : listaBase;
 
     let lastError: any = null;
     let replyText: string | null = null;
@@ -279,7 +315,61 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     let fuentes: Array<{ titulo: string; url: string }> = [];
     let had429 = false;
 
+    // ===== Respuesta en vivo (streaming): el texto llega al estudiante mientras se genera =====
+    const quiereStream = Boolean((req.body as any)?.stream);
+    let streamIniciado = false;
+    let textoEnviado = false;
+    const enviarEvento = (evento: Record<string, unknown>) => {
+      if (!streamIniciado) {
+        streamIniciado = true;
+        res.status(200);
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('X-Accel-Buffering', 'no');
+        (res as any).flushHeaders?.();
+      }
+      res.write(JSON.stringify(evento) + '\n');
+    };
+    const responderError = (status: number, error: string) => {
+      if (streamIniciado) {
+        enviarEvento({ t: 'error', error });
+        return res.end();
+      }
+      return res.status(status).json({ error });
+    };
+    // Con streaming devuelve un objeto con la misma forma que generateContent (text, candidates, modelVersion)
+    const generar = async (model: string, cfg: any): Promise<any> => {
+      if (!quiereStream) return ai.models.generateContent({ model, contents, config: cfg });
+      const flujo = await ai.models.generateContentStream({ model, contents, config: cfg });
+      let texto = '';
+      let ultimo: any = null;
+      for await (const parte of flujo) {
+        ultimo = parte;
+        const delta = parte.text || '';
+        if (delta) {
+          if (!texto && textoEnviado) enviarEvento({ t: 'reinicio' });
+          texto += delta;
+          textoEnviado = true;
+          enviarEvento({ t: 'delta', text: delta });
+        }
+      }
+      return { text: texto, candidates: ultimo?.candidates, modelVersion: ultimo?.modelVersion };
+    };
+
     // Attempt models with 429/503 fallback, 1.5s backoff, and 404 immediate skip
+    // Si todos los modelos chocan con el límite POR MINUTO, se espera a que se libere y se
+    // reintenta (hasta 2 veces): el estudiante solo ve los puntos de "escribiendo".
+    for (let ronda = 0; ronda < 3 && !replyText; ronda++) {
+      if (ronda > 0) {
+        const ahora = Date.now();
+        const esperas = modelsToTry
+          .map((mm) => (agotadoHasta.get(claveCupo(mm, !!modo.busqueda)) || 0) - ahora)
+          .filter((ms) => ms > 0);
+        const espera = esperas.length ? Math.min(...esperas) : 0;
+        if (espera <= 0 || espera > 35_000) break;
+        console.log(`[Cupo] Límite por minuto: se espera ${Math.ceil(espera / 1000)} s y se reintenta`);
+        await new Promise((resolve) => setTimeout(resolve, espera + 300));
+      }
     for (let i = 0; i < modelsToTry.length; i++) {
       const model = modelsToTry[i];
       if (estaAgotado(model, !!modo.busqueda)) {
@@ -290,11 +380,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       }
       try {
         const t0 = Date.now();
-        const response = await ai.models.generateContent({
-          model,
-          contents,
-          config,
-        });
+        const response = await generar(model, config);
         console.log(`[Tiempo] ${model} -> ${(response as any).modelVersion} en ${Date.now() - t0} ms (busqueda: ${!!modo.busqueda})`);
 
         if (response.text) {
@@ -339,12 +425,22 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           continue;
         }
 
+        // Si el modelo no acepta el nivel de razonamiento MINIMAL, se reintenta con LOW en el mismo modelo
+        if (status === 400 && /thinking/i.test(String(err?.message || '')) && config.thinkingConfig) {
+          // MINIMAL no soportado → LOW; un modelo que no admite niveles de razonamiento → sin esa opción
+          if (config.thinkingConfig.thinkingLevel === 'MINIMAL') config.thinkingConfig = { thinkingLevel: 'LOW' };
+          else delete config.thinkingConfig;
+          i--;
+          continue;
+        }
+
         const isOverload = status === 429 || status === 503 || (typeof err?.message === 'string' && (err.message.includes('429') || err.message.includes('503')));
 
         // If error is NOT 429 or 503, do NOT retry
+        // Otros errores de un modelo concreto: se intenta con el siguiente en vez de fallar
         if (!isOverload) {
-          console.error(`Error no recuperable con modelo ${model}:`, err?.message || err);
-          throw err;
+          console.error(`Error con el modelo ${model}; se intenta con el siguiente:`, err?.message || err);
+          continue;
         }
 
         // If there is another model to try, wait 1.5s backoff
@@ -353,6 +449,8 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
       }
+    }
+
     }
 
     // Si todos fallan por 429 en un modo con búsqueda, haz un último intento SIN la herramienta googleSearch con 'gemini-flash-latest'
@@ -410,25 +508,31 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         modelo: modeloUsado,
         segundos: Math.round((Date.now() - tInicio) / 100) / 10,
       });
+      if (quiereStream) {
+        enviarEvento({ t: 'fin', reply: replyText, fuentes });
+        return res.end();
+      }
       return res.json({ reply: replyText, fuentes });
     }
 
     const is429 = lastError?.status === 429 || (typeof lastError?.message === 'string' && lastError.message.includes('429'));
     if (is429) {
-      const cupoDiario = typeof lastError?.message === 'string' && /free_tier|retry in/i.test(lastError.message);
-      return res.status(429).json({
-        error: cupoDiario
+      // Solo es «cupo de hoy» si TODOS los modelos quedaron bloqueados por más de 5 minutos (límite diario)
+      const cupoDiario = modelsToTry.every((mm) => ((agotadoHasta.get(claveCupo(mm, !!modo.busqueda)) || 0) - Date.now()) > 5 * 60_000);
+      return responderError(429, cupoDiario
           ? 'Se agotó el cupo gratuito de consultas de hoy. El docente debe activar la facturación en Google AI Studio o esperar a que se renueve el cupo.'
-          : 'Hay muchas consultas en este momento. Espera unos segundos y vuelve a intentarlo.',
-      });
+          : 'Hay muchas consultas en este momento. Espera unos segundos y vuelve a intentarlo.');
     }
 
-    return res.status(503).json({
-      error: 'El servicio está experimentando alta demanda. Por favor reintenta en unos instantes.',
-
-    });
+    return responderError(503, 'El servicio está experimentando alta demanda. Por favor reintenta en unos instantes.');
   } catch (error: any) {
     console.error('Error al procesar solicitud de chat:', error);
+    if (res.headersSent) {
+      try {
+        res.write(JSON.stringify({ t: 'error', error: 'Se interrumpió la respuesta. Intenta de nuevo.' }) + '\n');
+      } catch {}
+      return res.end();
+    }
     return res.status(500).json({
       error: 'Hubo un inconveniente al conectar con el interlocutor. Por favor intenta de nuevo.',
 

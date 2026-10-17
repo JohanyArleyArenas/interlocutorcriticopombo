@@ -53,7 +53,8 @@ function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
     <div className="flex-1 flex items-center justify-center px-4 py-10">
       <form
         onSubmit={enviar}
-        className="w-full max-w-[420px] bg-[var(--color-superficie)] rounded-[20px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-6 sm:p-8 flex flex-col gap-4"
+        style={{ animationDelay: '750ms' }}
+        className="anim-tarjeta w-full max-w-[420px] bg-[var(--color-superficie)] rounded-[20px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-6 sm:p-8 flex flex-col gap-4"
       >
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.02em]">Antes de empezar</h1>
@@ -155,7 +156,7 @@ export default function App() {
           />
         ) : (
           <>
-            <div className="pt-5 px-4 flex items-center justify-center gap-3 text-[15px] text-[var(--color-secundario)]">
+            <div className="anim-entrada pt-5 px-4 flex items-center justify-center gap-3 text-[15px] text-[var(--color-secundario)]">
               <span>
                 Sesión de <span className="font-semibold text-[var(--color-texto)]">{estudiante}</span>
               </span>

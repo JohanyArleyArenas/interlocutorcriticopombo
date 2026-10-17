@@ -148,8 +148,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
   // Barra del modo: se oculta al bajar y reaparece al subir (el encabezado general queda fijo)
   const [barraVisible, setBarraVisible] = useState(true);
   const ultimoScrollRef = useRef(0);
+  // ¿El estudiante está viendo el final del hilo? Si sí, el final se mantiene visible aunque la respuesta crezca.
+  const pegadoAlFondoRef = useRef(true);
+  // Evita enviar otro mensaje mientras la respuesta anterior todavía se está escribiendo
+  const enviandoRef = useRef(false);
   const manejarScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const actual = e.currentTarget.scrollTop;
+    pegadoAlFondoRef.current = e.currentTarget.scrollHeight - actual - e.currentTarget.clientHeight < 80;
     const delta = actual - ultimoScrollRef.current;
     if (actual < 24) {
       setBarraVisible(true);
@@ -228,8 +233,22 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
   useEffect(() => {
     // Estilo ChatGPT: el hilo siempre queda mostrando el final de la conversación
     setEspacioFinal(0);
-    requestAnimationFrame(() => scrollToBottom(true));
+    pegadoAlFondoRef.current = true;
+    requestAnimationFrame(() => scrollToBottom(false));
   }, [messages.length, isLoading, errorMessage]);
+
+  // Cuando el contenido cambia de alto después de pintarse (fórmulas, listas, imágenes),
+  // se vuelve a bajar hasta el final para que la vista no quede a mitad de la respuesta.
+  useEffect(() => {
+    const contenedor = getContenedor();
+    const lista = listRef.current;
+    if (!contenedor || !lista || typeof ResizeObserver === 'undefined') return;
+    const observadorLista = new ResizeObserver(() => {
+      if (pegadoAlFondoRef.current) contenedor.scrollTop = contenedor.scrollHeight;
+    });
+    observadorLista.observe(lista);
+    return () => observadorLista.disconnect();
+  }, []);
 
   // Adjust textarea height up to 6 lines
   useEffect(() => {
@@ -301,7 +320,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
 
   const handleSendMessage = async () => {
     const trimmed = inputText.trim();
-    if ((!trimmed && !attachedFile) || isLoading || isProcessingFile) return;
+    if ((!trimmed && !attachedFile) || isLoading || isProcessingFile || enviandoRef.current) return;
+    enviandoRef.current = true;
 
     let userArchivo: ChatArchivo | undefined = undefined;
     if (attachedFile) {
@@ -352,6 +372,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
           messages: payloadMessages,
           estudiante: estudiante || '',
           sesion: sesionRef.current,
+          stream: true,
         }),
       });
 
@@ -360,25 +381,82 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
         throw new Error(errorData.error || `Error del servidor (${res.status})`);
       }
 
-      const data = await res.json();
-      const replyText = data.reply || '';
-      const fuentes = Array.isArray(data.fuentes) ? data.fuentes : [];
-
-      const agentMessage: ChatMessage = {
-        id: `model-${Date.now()}`,
-        role: 'model',
-        text: replyText,
-        fuentes,
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, agentMessage]);
+      const tipo = res.headers.get('content-type') || '';
+      if (tipo.includes('application/x-ndjson') && res.body) {
+        // Respuesta en vivo: el texto aparece mientras el modelo lo escribe
+        const idRespuesta = `model-${Date.now()}`;
+        let acumulado = '';
+        let creado = false;
+        const pintar = (texto: string, fuentesFinales?: any[]) => {
+          if (!creado) {
+            creado = true;
+            setIsLoading(false);
+            const nuevoMensaje: ChatMessage = {
+              id: idRespuesta,
+              role: 'model',
+              text: texto,
+              fuentes: fuentesFinales || [],
+              timestamp: Date.now(),
+            };
+            setMessages((prev) => [...prev, nuevoMensaje]);
+          } else {
+            setMessages((prev) =>
+              prev.map((mm) => (mm.id === idRespuesta ? { ...mm, text: texto, ...(fuentesFinales ? { fuentes: fuentesFinales } : {}) } : mm))
+            );
+          }
+        };
+        const lector = res.body.getReader();
+        const decodificador = new TextDecoder();
+        let pendiente = '';
+        let terminado = false;
+        while (!terminado) {
+          const { value, done } = await lector.read();
+          if (done) break;
+          pendiente += decodificador.decode(value, { stream: true });
+          let corte = pendiente.indexOf('\n');
+          while (corte >= 0) {
+            const linea = pendiente.slice(0, corte).trim();
+            pendiente = pendiente.slice(corte + 1);
+            corte = pendiente.indexOf('\n');
+            if (!linea) continue;
+            const evento = JSON.parse(linea);
+            if (evento.t === 'delta') {
+              acumulado += evento.text || '';
+              pintar(acumulado);
+            } else if (evento.t === 'reinicio') {
+              acumulado = '';
+            } else if (evento.t === 'fin') {
+              acumulado = evento.reply || acumulado;
+              pintar(acumulado, Array.isArray(evento.fuentes) ? evento.fuentes : []);
+              terminado = true;
+            } else if (evento.t === 'error') {
+              throw new Error(evento.error || 'Se interrumpió la respuesta. Intenta de nuevo.');
+            }
+          }
+        }
+        if (!creado) throw new Error('No llegó respuesta del interlocutor. Intenta de nuevo.');
+      } else {
+        const data = await res.json();
+        const replyText = data.reply || '';
+        const fuentes = Array.isArray(data.fuentes) ? data.fuentes : [];
+  
+        const agentMessage: ChatMessage = {
+          id: `model-${Date.now()}`,
+          role: 'model',
+          text: replyText,
+          fuentes,
+          timestamp: Date.now(),
+        };
+  
+        setMessages((prev) => [...prev, agentMessage]);
+      }
     } catch (err: any) {
       console.error('Error al enviar mensaje:', err);
       setErrorMessage(
         err.message || 'No se pudo obtener respuesta del interlocutor. Por favor intenta de nuevo.'
       );
     } finally {
+      enviandoRef.current = false;
       setIsLoading(false);
       // Solo en computador se devuelve el cursor al cuadro de texto;
       // en móvil no, para que el teclado no tape la respuesta
@@ -427,7 +505,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     >
       {/* Barra superior del chat: botón '‹ Modos' a la izquierda y el título centrado */}
       <div
-        className="absolute top-0 inset-x-0 bg-[var(--color-superficie)]/80 backdrop-blur-md border-b border-[var(--color-separador)] px-4 h-[50px] z-20 transition-transform duration-200 ease-out"
+        className="absolute top-0 inset-x-0 bg-[var(--color-superficie)]/80 backdrop-blur-md border-b border-[var(--color-separador)] px-4 h-[50px] z-20 transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]"
         style={{ transform: barraVisible ? 'translateY(0)' : 'translateY(-100%)' }}
         onFocus={() => setBarraVisible(true)}
       >
@@ -548,7 +626,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                     {pasos.length > 0 && (
                       <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label="Cómo funciona">
                         {pasos.map((paso, i) => (
-                          <li key={i} className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-2xl bg-[var(--color-fondo)] px-3.5 py-3">
+                          <li key={i} style={{ animationDelay: `${180 + i * 90}ms` }} className="anim-entrada flex sm:flex-col items-start gap-3 sm:gap-2 rounded-2xl bg-[var(--color-fondo)] px-3.5 py-3">
                             <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[12px] font-semibold flex items-center justify-center shrink-0">
                               {i + 1}
                             </span>
@@ -712,7 +790,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
             </div>
           )}
 
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} aria-hidden="true" className="-mt-4" />
         </div>
         <div aria-hidden="true" style={{ height: espacioFinal }} />
       </div>
