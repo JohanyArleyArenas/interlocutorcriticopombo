@@ -41,7 +41,7 @@ export const ModosGrid: React.FC<ModosGridProps> = ({ onSelectModo }) => {
 
       {/* Cuadrícula de 6 tarjetas: 2 columnas en escritorio, 1 en móvil */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 w-full items-stretch">
-        {modeKeys.map((key) => {
+        {modeKeys.map((key, i) => {
           const modo = AGENTE.modos[key] as ModoConfig;
           if (!modo) return null;
           const Icon = modeIcons[key] || MessageSquareQuote;
@@ -58,7 +58,8 @@ export const ModosGrid: React.FC<ModosGridProps> = ({ onSelectModo }) => {
                   onSelectModo(key);
                 }
               }}
-              className="apple-card group text-left cursor-pointer h-full flex flex-col"
+              className="apple-card tarjeta-entrada group text-left cursor-pointer h-full flex flex-col active:scale-[0.98] transition-transform"
+              style={{ animationDelay: `${80 + i * 50}ms` }}
             >
               <div className="flex items-center justify-between gap-2 h-[44px]">
                 {/* Icono en cuadro redondeado */}

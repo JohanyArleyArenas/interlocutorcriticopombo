@@ -7,7 +7,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onBackToModos }) => {
   return (
     <header className="bg-[var(--color-superficie)]/85 backdrop-blur-md border-b border-[var(--color-separador)] sticky top-0 z-30 transition-colors">
-      <div className="max-w-[1120px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
+      <div className="max-w-[820px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
         {/* Left: Escudo + Nombres */}
         <div
           onClick={onBackToModos}

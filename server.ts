@@ -39,13 +39,76 @@ export interface ChatMessagePayload {
   archivo?: ChatArchivo;
 }
 
+// ===== Registro de interacciones en Google Sheets (vía Google Forms) =====
+// Cada interacción se envía a un formulario oculto vinculado a la hoja
+// "Interlocutor Crítico — Registro de interacciones". No requiere Apps Script.
+const FORM_URL =
+  'https://docs.google.com/forms/d/e/1FAIpQLSewmTa98Cqs53Arm4BTYFyhhkRCHjZniibXTErhWrVy1SBQwQ/formResponse';
+// Debe coincidir con la validación de la pregunta "clave" del formulario.
+const FORM_CLAVE = 'pombo-ic-4q8z2m7w';
+const FORM_CAMPOS: Record<string, string> = {
+  fecha: 'entry.1675284540',
+  estudiante: 'entry.1462404239',
+  sesion: 'entry.1128055853',
+  modo: 'entry.1859855854',
+  turno: 'entry.735608089',
+  mensaje: 'entry.1908556910',
+  adjunto: 'entry.435567498',
+  respuesta: 'entry.1317219066',
+  fuentes: 'entry.1848009346',
+  modelo: 'entry.777390068',
+  segundos: 'entry.1135670343',
+  clave: 'entry.297468861',
+};
+
+function registrarInteraccion(fila: Record<string, unknown>) {
+  const datos = new URLSearchParams();
+  for (const [campo, entry] of Object.entries(FORM_CAMPOS)) {
+    const valor = campo === 'clave' ? FORM_CLAVE : fila[campo];
+    datos.append(entry, String(valor ?? '').slice(0, 45000));
+  }
+  fetch(FORM_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: datos.toString(),
+  })
+    .then((r) => {
+      if (!r.ok) console.log(`[Registro] Google Forms respondió ${r.status}`);
+    })
+    .catch((err) => console.log('[Registro] No se pudo guardar la interacción:', err?.message));
+}
+
+// ===== Memoria de cupos agotados (plan gratuito) =====
+// Cuando un modelo responde 429 por cupo agotado, se recuerda hasta cuándo y se salta
+// directamente, sin gastar un intento ni esperar el backoff en cada mensaje.
+const agotadoHasta = new Map<string, number>();
+const claveCupo = (model: string, conBusqueda: boolean) => `${model}|${conBusqueda ? 'busqueda' : 'normal'}`;
+
+function estaAgotado(model: string, conBusqueda: boolean): boolean {
+  const hasta = agotadoHasta.get(claveCupo(model, conBusqueda));
+  return !!hasta && Date.now() < hasta;
+}
+
+function marcarAgotado(model: string, conBusqueda: boolean, mensaje: string): number {
+  const m = /retryDelay"?\s*:\s*"?(\d+(?:\.\d+)?)s/.exec(mensaje) || /retry in (\d+(?:\.\d+)?)\s*s/i.exec(mensaje);
+  let ms = m ? Math.ceil(parseFloat(m[1]) * 1000) : 60_000;
+  // Si es el límite DIARIO, Google a veces sugiere reintentar en segundos; se salta al menos 1 hora.
+  if (/PerDay/i.test(mensaje)) ms = Math.max(ms, 60 * 60 * 1000);
+  agotadoHasta.set(claveCupo(model, conBusqueda), Date.now() + ms);
+  console.log(`[Cupo] ${model} (${conBusqueda ? 'con' : 'sin'} búsqueda) agotado; se saltará durante ${Math.round(ms / 1000)} s`);
+  return ms;
+}
+
 // Model cascade strictly per user instructions
 const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 const SEARCH_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 
 app.post('/api/chat', async (req, res) => {
   try {
-    const { modeKey, messages } = req.body as {
+    const tInicio = Date.now();
+    const { modeKey, messages, estudiante, sesion } = req.body as {
+      estudiante?: string;
+      sesion?: string;
       modeKey?: string;
       messages?: ChatMessagePayload[];
     };
@@ -135,7 +198,9 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     const config: any = {
       systemInstruction,
       temperature: typeof modo.temperatura === 'number' ? modo.temperatura : 0.7,
-      maxOutputTokens: typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000,
+      // + 1500: margen para el razonamiento interno, que también consume tokens de salida y cortaba las respuestas
+      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
+      thinkingConfig: { thinkingLevel: 'LOW' as any }, // más rápido: el modelo piensa menos antes de responder
     };
 
     if (modo.busqueda) {
@@ -146,21 +211,31 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
 
     let lastError: any = null;
     let replyText: string | null = null;
+    let modeloUsado = 'respaldo sin búsqueda';
     let fuentes: Array<{ titulo: string; url: string }> = [];
     let had429 = false;
 
     // Attempt models with 429/503 fallback, 1.5s backoff, and 404 immediate skip
     for (let i = 0; i < modelsToTry.length; i++) {
       const model = modelsToTry[i];
+      if (estaAgotado(model, !!modo.busqueda)) {
+        console.log(`[Cupo] Saltando ${model}: sin cupo por ahora`);
+        had429 = true;
+        lastError = lastError || { status: 429, message: 'free_tier: cupo agotado (recordado por el servidor)' };
+        continue;
+      }
       try {
+        const t0 = Date.now();
         const response = await ai.models.generateContent({
           model,
           contents,
           config,
         });
+        console.log(`[Tiempo] ${model} -> ${(response as any).modelVersion} en ${Date.now() - t0} ms (busqueda: ${!!modo.busqueda})`);
 
         if (response.text) {
           replyText = response.text;
+          modeloUsado = (response as any).modelVersion || model;
 
           // Extract grounding sources if available
           const candidate = response.candidates?.[0];
@@ -183,6 +258,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         }
       } catch (err: any) {
         lastError = err;
+        let cupoLargo = false;
         const status = err?.status || err?.statusCode || (typeof err?.message === 'string' && err.message.includes('429') ? 429 : (typeof err?.message === 'string' && err.message.includes('404') ? 404 : 500));
 
         // Diagnóstico de errores: console.log del mensaje completo del error (err.message y err.status)
@@ -190,6 +266,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
 
         if (status === 429 || (typeof err?.message === 'string' && err.message.includes('429'))) {
           had429 = true;
+          cupoLargo = marcarAgotado(model, !!modo.busqueda, String(err?.message || '')) >= 60_000;
         }
 
         // Si un modelo responde 404 (no existe), pasa al siguiente sin esperar
@@ -207,7 +284,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         }
 
         // If there is another model to try, wait 1.5s backoff
-        if (i < modelsToTry.length - 1) {
+        if (i < modelsToTry.length - 1 && !cupoLargo) {
           console.log('Esperando 1,5 s antes de cambiar de modelo tras error 429/503...');
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
@@ -219,11 +296,17 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       console.log('Todos los modelos con búsqueda fallaron por 429. Intentando fallback SIN googleSearch...');
       const fallbackModels = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
       for (const fbModel of fallbackModels) {
+        if (estaAgotado(fbModel, false)) {
+          console.log(`[Cupo] Saltando ${fbModel} (respaldo sin búsqueda)`);
+          continue;
+        }
         try {
           const fallbackConfig: any = {
             systemInstruction: systemInstruction + "\n\nIMPORTANTE: en esta respuesta NO tienes acceso a la búsqueda en Google. No digas que buscaste ni que consultaste fuentes en línea. Responde solo con lo que sabes, aclara que puede estar desactualizado y, si es una verificación, da un veredicto provisional o 'Sin evidencia suficiente'.",
             temperature: typeof modo.temperatura === 'number' ? modo.temperatura : 0.7,
-            maxOutputTokens: typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000,
+            // + 1500: margen para el razonamiento interno, que también consume tokens de salida y cortaba las respuestas
+      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
+            thinkingConfig: { thinkingLevel: 'LOW' as any }, // más rápido: el modelo piensa menos antes de responder
           };
 
           const fallbackResponse = await ai.models.generateContent({
@@ -241,11 +324,28 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           lastError = fallbackErr;
           const fallbackStatus = fallbackErr?.status || fallbackErr?.statusCode || (typeof fallbackErr?.message === 'string' && fallbackErr.message.includes('429') ? 429 : 500);
           console.log(`[Error en fallback ${fbModel}] err.status: ${fallbackStatus}, err.message: ${fallbackErr?.message}`);
+        if (fallbackStatus === 429) marcarAgotado(fbModel, false, String(fallbackErr?.message || ''));
         }
       }
     }
 
     if (replyText) {
+      // Registro de la interacción en Google Sheets (no bloquea la respuesta)
+      const mensajesEst = messages.filter((m) => m.role === 'user');
+      const ultimoEst = mensajesEst[mensajesEst.length - 1];
+      registrarInteraccion({
+        fecha: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+        estudiante: (estudiante || '').slice(0, 120),
+        sesion: sesion || '',
+        modo: modo.titulo,
+        turno: mensajesEst.length,
+        mensaje: ultimoEst?.text || '',
+        adjunto: ultimoEst?.archivo?.nombre || '',
+        respuesta: replyText,
+        fuentes: fuentes.map((f) => f.url).join('\n'),
+        modelo: modeloUsado,
+        segundos: Math.round((Date.now() - tInicio) / 100) / 10,
+      });
       return res.json({ reply: replyText, fuentes });
     }
 

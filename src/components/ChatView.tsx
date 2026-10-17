@@ -35,6 +35,7 @@ export interface ChatMessage {
 interface ChatViewProps {
   modeKey: string;
   onBackToModos: () => void;
+  estudiante?: string;
 }
 
 interface AttachedFilePreview {
@@ -46,7 +47,7 @@ interface AttachedFilePreview {
   texto?: string;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estudiante }) => {
   const modo: ModoConfig = AGENTE.modos[modeKey] || {
     titulo: 'Diálogo socrático',
     descripcion: '',
@@ -77,10 +78,42 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) =>
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Identificador de esta conversación (para agrupar los turnos en la hoja de registro)
+  const sesionRef = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
+
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [espacioFinal, setEspacioFinal] = useState(0);
+
+  const getContenedor = () =>
+    messagesEndRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
 
   const scrollToBottom = (smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: smooth ? 'smooth' : 'auto',
+    // Desplaza solo el hilo de mensajes (no toda la página), para que el encabezado no desaparezca en móvil
+    const contenedor = getContenedor();
+    if (contenedor) {
+      contenedor.scrollTo({ top: contenedor.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    }
+  };
+
+  // Como en Claude: al enviar, el último mensaje del estudiante sube al borde superior
+  // y la respuesta aparece debajo, legible desde su inicio. Lo anterior queda arriba.
+  const ajustarAlUltimoMensaje = (smooth = true) => {
+    const contenedor = getContenedor();
+    const lista = listRef.current;
+    if (!contenedor || !lista) return;
+    const usuarios = lista.querySelectorAll<HTMLElement>('[data-role="user"]');
+    const ultimo = usuarios[usuarios.length - 1];
+    if (!ultimo) {
+      setEspacioFinal(0);
+      return;
+    }
+    const margen = 16;
+    const altoDesdeUltimo = lista.getBoundingClientRect().bottom - ultimo.getBoundingClientRect().top;
+    setEspacioFinal(Math.max(0, contenedor.clientHeight - altoDesdeUltimo - margen * 3));
+    requestAnimationFrame(() => {
+      const top =
+        ultimo.getBoundingClientRect().top - contenedor.getBoundingClientRect().top + contenedor.scrollTop - margen;
+      contenedor.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
     });
   };
 
@@ -89,8 +122,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) =>
   }, []);
 
   useEffect(() => {
-    scrollToBottom(true);
-  }, [messages, isLoading]);
+    ajustarAlUltimoMensaje(true);
+  }, [messages.length, isLoading, errorMessage]);
 
   // Adjust textarea height up to 6 lines
   useEffect(() => {
@@ -209,6 +242,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) =>
         body: JSON.stringify({
           modeKey,
           messages: payloadMessages,
+          estudiante: estudiante || '',
+          sesion: sesionRef.current,
         }),
       });
 
@@ -273,7 +308,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) =>
 
   return (
     <div 
-      className="flex-1 flex flex-col h-[calc(100vh-64px-57px)] w-full bg-transparent overflow-hidden"
+      className="flex-1 flex flex-col min-h-0 w-full bg-transparent overflow-hidden"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -317,13 +352,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) =>
 
       {/* Hilo de mensajes scrollable */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
-        <div className="max-w-[720px] mx-auto space-y-6">
+        <div ref={listRef} className="max-w-[720px] mx-auto space-y-6">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
 
             if (isUser) {
               return (
-                <div key={msg.id} className="flex flex-col items-end message-appear">
+                <div key={msg.id} data-role="user" className="flex flex-col items-end message-appear">
                   {/* Ficha del archivo adjunto en el mensaje del estudiante */}
                   {msg.archivo && (
                     <div className="mb-2 max-w-[85%] sm:max-w-[70%] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-xs">
@@ -462,10 +497,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) =>
 
           <div ref={messagesEndRef} />
         </div>
+        <div aria-hidden="true" style={{ height: espacioFinal }} />
       </div>
 
       {/* Campo de mensaje: tipo cápsula, flotante y centrado abajo (max-width 720px), radio 28px, fondo superficie, sombra suave, borde 1px #D2D2D7 */}
-      <div className="p-3 sm:pb-4 shrink-0 bg-transparent">
+      <div className="p-3 sm:pb-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0 bg-transparent">
         <div className="max-w-[720px] mx-auto relative flex flex-col">
           {/* Ficha de archivo adjunto previo al envío */}
           {attachedFile && (
@@ -499,7 +535,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos }) =>
               e.preventDefault();
               handleSendMessage();
             }}
-            className="w-full bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[28px] shadow-sm px-4 py-2 flex items-end gap-2 transition-all focus-within:border-[var(--color-acento)]"
+            className="w-full bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[28px] shadow-sm px-4 py-2 flex items-end gap-2 transition-all"
           >
             {/* Input para adjuntar archivo (solo en modos con adjuntos=true) */}
             {modo.adjuntos && (

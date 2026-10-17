@@ -127,7 +127,7 @@
 }
 
 /* Foco visible con anillo verde accesible */
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--color-fondo), 0 0 0 5px var(--color-acento) !important;
 }
@@ -145,7 +145,26 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .message-appear {
-  animation: messageFadeIn 150ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation: messageFadeIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Transición suave al entrar a cada vista (inicio ↔ modo) */
+@keyframes vistaEntrada {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.vista-entrada {
+  animation: vistaEntrada 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+/* Las tarjetas de modos aparecen una tras otra */
+.tarjeta-entrada {
+  animation: vistaEntrada 480ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vista-entrada, .tarjeta-entrada, .message-appear {
+    animation: vistaFade 200ms ease backwards;
+  }
+  @keyframes vistaFade { from { opacity: 0; } to { opacity: 1; } }
 }
 
 /* Animación pulsante para búsqueda / espera */
@@ -252,4 +271,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Campo de mensaje: sin recuadro ni anillo al escribir */
+textarea:focus, textarea:focus-visible, input[type="text"]:focus {
+  outline: none !important;
+  box-shadow: none !important;
 }
