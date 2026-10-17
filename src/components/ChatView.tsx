@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { obtenerSugerenciasAleatorias } from '../sugerencias';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+
+// Fórmulas: el modelo a veces escribe \( … \) o \[ … \]; se pasan a $ … $ y $$ … $$
+// para que remark-math las reconozca y KaTeX las dibuje bien.
+const prepararMatematicas = (texto: string) =>
+  (texto || '')
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, f) => '\n$$\n' + f.trim() + '\n$$\n')
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_m, f) => '$' + f.trim() + '$');
 import mammoth from 'mammoth';
 import { 
   ChevronLeft, 
@@ -109,6 +120,24 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Sugerencias dinámicas: cambian en cada ingreso y con el botón 'Otras ideas'
+  const [rondaIdeas, setRondaIdeas] = useState(0);
+  const cacheIdeasRef = useRef<Record<string, string[]>>({});
+  const ideasPara = (clave: string): string[] => {
+    const base = EJEMPLOS_MODO[clave] || [];
+    if (base.length === 0) return base;
+    const k = clave + '#' + rondaIdeas;
+    if (!cacheIdeasRef.current[k]) {
+      let nuevas: string[] = [];
+      try {
+        nuevas = obtenerSugerenciasAleatorias(2, clave).map((s) => s.texto);
+      } catch {
+        nuevas = [];
+      }
+      cacheIdeasRef.current[k] = nuevas.length > 0 ? nuevas : base.slice(0, 2);
+    }
+    return cacheIdeasRef.current[k];
+  };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // Identificador de esta conversación (para agrupar los turnos en la hoja de registro)
   const sesionRef = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
@@ -131,6 +160,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     }
   };
 
+  const esMovil = () =>
+    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+
   const getContenedor = () =>
     messagesEndRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
 
@@ -141,6 +174,22 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
       contenedor.scrollTo({ top: contenedor.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
     }
   };
+
+  // Estilo WhatsApp: cuando se abre el teclado y el hilo se encoge, los mensajes
+  // suben junto con la casilla de escritura (y bajan de nuevo al cerrarlo).
+  useEffect(() => {
+    const contenedor = getContenedor();
+    if (!contenedor || typeof ResizeObserver === 'undefined') return;
+    let altoPrevio = contenedor.clientHeight;
+    const observador = new ResizeObserver(() => {
+      const alto = contenedor.clientHeight;
+      const diferencia = altoPrevio - alto;
+      altoPrevio = alto;
+      if (diferencia !== 0) contenedor.scrollTop += diferencia;
+    });
+    observador.observe(contenedor);
+    return () => observador.disconnect();
+  }, []);
 
   // Como en Claude: al enviar, el último mensaje del estudiante sube al borde superior
   // y la respuesta aparece debajo, legible desde su inicio. Lo anterior queda arriba.
@@ -169,7 +218,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
   }, []);
 
   useEffect(() => {
-    ajustarAlUltimoMensaje(true);
+    // Estilo ChatGPT: el hilo siempre queda mostrando el final de la conversación
+    setEspacioFinal(0);
+    requestAnimationFrame(() => scrollToBottom(true));
   }, [messages.length, isLoading, errorMessage]);
 
   // Adjust textarea height up to 6 lines
@@ -268,6 +319,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     setInputText('');
     setAttachedFile(null);
     setErrorMessage(null);
+    // En móvil se cierra el teclado al enviar para poder leer la respuesta
+    if (esMovil()) textareaRef.current?.blur();
     setIsLoading(true);
 
     if (textareaRef.current) {
@@ -319,9 +372,13 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
       );
     } finally {
       setIsLoading(false);
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 50);
+      // Solo en computador se devuelve el cursor al cuadro de texto;
+      // en móvil no, para que el teclado no tape la respuesta
+      if (!esMovil()) {
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 50);
+      }
     }
   };
 
@@ -445,7 +502,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
             if (msg.id === 'greeting') {
               const IconoModo = ICONOS_MODO[modeKey] || MessageSquareQuote;
               const pasos = PASOS_MODO[modeKey] || [];
-              const ejemplos = EJEMPLOS_MODO[modeKey] || [];
+              const ejemplos = ideasPara(modeKey);
               const sinMensajes = messages.length === 1;
               return (
                 <div key={msg.id} className="message-appear rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
@@ -499,7 +556,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                       Para empezar
                     </p>
                     <div className="prose-apple select-text">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{prepararMatematicas(msg.text)}</ReactMarkdown>
                     </div>
 
                     {sinMensajes && (ejemplos.length > 0 || modo.adjuntos) && (
@@ -517,6 +574,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                             {ej}
                           </button>
                         ))}
+                        {ejemplos.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setRondaIdeas((r) => r + 1)}
+                            className="self-center text-[12px] px-2 py-1 bg-transparent text-[var(--color-texto)] opacity-50 hover:opacity-90 hover:underline transition-opacity"
+                          >
+                            ↻ otras ideas
+                          </button>
+                        )}
                         {modo.adjuntos && (
                           <button
                             type="button"
@@ -539,7 +605,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                 <div className="overflow-hidden">
                   <div className="prose-apple select-text">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
                       components={{
                         a: ({ node, ...props }) => (
                           <a
@@ -551,7 +617,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                         ),
                       }}
                     >
-                      {msg.text}
+                      {prepararMatematicas(msg.text)}
                     </ReactMarkdown>
                   </div>
 

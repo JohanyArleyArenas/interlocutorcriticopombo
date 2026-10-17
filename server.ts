@@ -145,12 +145,16 @@ app.post('/api/chat', async (req, res) => {
       ? `FECHA DE HOY: ${fechaHoy}. Usa la búsqueda de Google para obtener información actualizada.`
       : `FECHA DE HOY: ${fechaHoy}.`;
 
+    const reglaMatematicas = `FÓRMULAS Y MATEMÁTICAS: Para fórmulas, usa siempre la notación $...$ de LaTeX bien formada (sin escapar dobles barras) y $$...$$ para fórmulas en bloque. Cuando sea sencillo, prefiere símbolos Unicode legibles (√76, 7² = 49, ×, ÷) dentro del texto normal.`;
+
     const systemInstruction = `${AGENTE.parametros}
 
 ${fechaLinea}
 
 MODO ACTUAL: ${modo.titulo}
 ${modo.instrucciones}
+
+${reglaMatematicas}
 
 El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
 
@@ -195,12 +199,23 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       };
     });
 
+      // Preguntas de cálculo (matemáticas, física, química): se razona un poco más y con menos
+    // creatividad para no equivocarse en las operaciones. El resto sigue rápido (LOW).
+    const contextoReciente = slicedMessages.slice(-4).map((m: any) => m.text || '').join('\n');
+    const esCuantitativo =
+      /\d\s*[+\-*/^=×÷<>]\s*\d|[√π∫∑²³]|\\frac|\$|ecuaci|inecuaci|deriva|integral|fracci|porcentaje|ra[ií]z|potencia|logaritm|polinom|factoriz|trigonom|geometr|per[ií]metro|volumen|probabilidad|estad[ií]stic|velocidad|aceleraci|fuerza|energ[ií]a|estequiometr|molaridad|calcul|c[aá]lculo|resuelv|resolver|despej|f[oó]rmula|matem[aá]tic|[aá]lgebra|f[ií]sica|qu[ií]mica/i.test(
+        contextoReciente
+      );
+    const temperaturaBase = typeof modo.temperatura === 'number' ? modo.temperatura : 0.7;
+
     const config: any = {
-      systemInstruction,
-      temperature: typeof modo.temperatura === 'number' ? modo.temperatura : 0.7,
-      // + 1500: margen para el razonamiento interno, que también consume tokens de salida y cortaba las respuestas
-      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
-      thinkingConfig: { thinkingLevel: 'LOW' as any }, // más rápido: el modelo piensa menos antes de responder
+      systemInstruction: esCuantitativo
+        ? `${systemInstruction}\n\nESTA CONVERSACIÓN INCLUYE CÁLCULOS: aplica con especial cuidado las reglas de PRECISIÓN EN MATEMÁTICAS Y CIENCIAS.`
+        : systemInstruction,
+      temperature: esCuantitativo ? Math.min(temperaturaBase, 0.3) : temperaturaBase,
+      // El razonamiento interno también consume tokens de salida: se deja margen para no cortar respuestas
+      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + (esCuantitativo ? 3000 : 1500),
+      thinkingConfig: { thinkingLevel: (esCuantitativo ? 'MEDIUM' : 'LOW') as any },
     };
 
     if (modo.busqueda) {
@@ -316,7 +331,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           });
 
           if (fallbackResponse.text) {
-            replyText = `_Aviso: la búsqueda en Google no estuvo disponible en este momento; verifica las fechas de lo que sigue._\n\n${fallbackResponse.text}`;
+            replyText = `_Aviso: la búsqueda en Google no estuvo disponible en este momento._\n\n${fallbackResponse.text}`;
             fuentes = [];
             break;
           }

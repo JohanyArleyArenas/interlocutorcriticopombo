@@ -278,3 +278,14 @@ textarea:focus, textarea:focus-visible, input[type="text"]:focus {
   outline: none !important;
   box-shadow: none !important;
 }
+
+
+/* Fórmulas matemáticas (KaTeX): las largas se desplazan de lado en el celular */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+.katex {
+  font-size: 1.05em;
+}
