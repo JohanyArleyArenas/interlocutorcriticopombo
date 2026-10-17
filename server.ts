@@ -14,7 +14,9 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 // Up limit to 20MB for file uploads
-app.use(express.json({ limit: '20mb' }));
+app.set('trust proxy', true);
+// Hasta 25 MB: un archivo de 15 MB ocupa unos 20 MB al convertirlo a base64
+app.use(express.json({ limit: '25mb' }));
 
 // Shared Gemini AI instance on the server side
 const ai = new GoogleGenAI({
@@ -94,6 +96,8 @@ function marcarAgotado(model: string, conBusqueda: boolean, mensaje: string): nu
   let ms = m ? Math.ceil(parseFloat(m[1]) * 1000) : 60_000;
   // Si es el límite DIARIO, Google a veces sugiere reintentar en segundos; se salta al menos 1 hora.
   if (/PerDay/i.test(mensaje)) ms = Math.max(ms, 60 * 60 * 1000);
+  // La búsqueda en Google sin cupo (plan gratuito) no se recupera en segundos: se salta 30 min
+  if (conBusqueda && !m) ms = Math.max(ms, 30 * 60 * 1000);
   agotadoHasta.set(claveCupo(model, conBusqueda), Date.now() + ms);
   console.log(`[Cupo] ${model} (${conBusqueda ? 'con' : 'sin'} búsqueda) agotado; se saltará durante ${Math.round(ms / 1000)} s`);
   return ms;
@@ -102,6 +106,25 @@ function marcarAgotado(model: string, conBusqueda: boolean, mensaje: string): nu
 // Model cascade strictly per user instructions
 const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 const SEARCH_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+
+// ===== Límite de uso (protege el cupo de la API) =====
+// Por sesión de estudiante y, de forma más generosa, por red (todo un salón comparte la misma IP).
+const usoReciente = new Map<string, number[]>();
+function superaLimite(clave: string, porMinuto: number, porHora: number): boolean {
+  const ahora = Date.now();
+  const lista = (usoReciente.get(clave) || []).filter((t) => ahora - t < 60 * 60 * 1000);
+  const ultimoMinuto = lista.filter((t) => ahora - t < 60 * 1000).length;
+  if (ultimoMinuto >= porMinuto || lista.length >= porHora) {
+    usoReciente.set(clave, lista);
+    return true;
+  }
+  lista.push(ahora);
+  usoReciente.set(clave, lista);
+  if (usoReciente.size > 10000) usoReciente.clear();
+  return false;
+}
+
+const MIMES_PERMITIDOS = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif)|text\/[a-z+.-]+|application\/(md|txt|markdown)|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/i;
 
 app.post('/api/chat', async (req, res) => {
   try {
@@ -119,6 +142,32 @@ app.post('/api/chat', async (req, res) => {
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'El historial de mensajes está vacío.' });
+    }
+    // ===== Validación de la solicitud (seguridad) =====
+    const ip = String(req.ip || req.headers['x-forwarded-for'] || 'desconocida').split(',')[0].trim();
+    const claveSesion = 'sesion:' + String(sesion || ip).slice(0, 60);
+    if (superaLimite('ip:' + ip, 120, 2000) || superaLimite(claveSesion, 8, 120)) {
+      return res.status(429).json({ error: 'Vas muy rápido. Espera un minuto antes de enviar otro mensaje.' });
+    }
+    if (messages.length > 80) {
+      return res.status(400).json({ error: 'La conversación es demasiado larga. Inicia un chat nuevo.' });
+    }
+    for (const m of messages as any[]) {
+      if (!m || (m.role !== 'user' && m.role !== 'model') || (m.text != null && typeof m.text !== 'string')) {
+        return res.status(400).json({ error: 'Formato de mensaje no válido.' });
+      }
+      if ((m.text || '').length > 12000) {
+        return res.status(400).json({ error: 'Tu mensaje es demasiado largo. Divídelo en partes más cortas.' });
+      }
+      const a = m.archivo;
+      if (a) {
+        if (typeof a.mimeType !== 'string' || !MIMES_PERMITIDOS.test(a.mimeType)) {
+          return res.status(400).json({ error: 'Tipo de archivo no permitido. Usa PDF, Word, TXT o imagen.' });
+        }
+        if ((a.data && String(a.data).length > 21_000_000) || (a.texto && String(a.texto).length > 300_000)) {
+          return res.status(400).json({ error: 'El archivo es demasiado grande (máximo 15 MB).' });
+        }
+      }
     }
 
     const modo = AGENTE.modos[modeKey];
@@ -317,7 +366,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         }
         try {
           const fallbackConfig: any = {
-            systemInstruction: systemInstruction + "\n\nIMPORTANTE: en esta respuesta NO tienes acceso a la búsqueda en Google. No digas que buscaste ni que consultaste fuentes en línea. Responde solo con lo que sabes, aclara que puede estar desactualizado y, si es una verificación, da un veredicto provisional o 'Sin evidencia suficiente'.",
+            systemInstruction: systemInstruction + "\n\nIMPORTANTE: en esta respuesta NO tienes acceso a la búsqueda en Google. No digas que buscaste ni que consultaste fuentes en línea. Responde solo con lo que sabes, aclara que puede estar desactualizado y, si es una verificación, da un veredicto provisional o 'Sin evidencia suficiente'. No escribas ningún aviso ni nota sobre la falta de búsqueda: la aplicación ya muestra ese aviso al estudiante.",
             temperature: typeof modo.temperatura === 'number' ? modo.temperatura : 0.7,
             // + 1500: margen para el razonamiento interno, que también consume tokens de salida y cortaba las respuestas
       maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
@@ -376,13 +425,13 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
 
     return res.status(503).json({
       error: 'El servicio está experimentando alta demanda. Por favor reintenta en unos instantes.',
-      details: lastError?.message || 'Servicio no disponible',
+
     });
   } catch (error: any) {
     console.error('Error al procesar solicitud de chat:', error);
     return res.status(500).json({
       error: 'Hubo un inconveniente al conectar con el interlocutor. Por favor intenta de nuevo.',
-      details: error?.message || 'Error interno',
+
     });
   }
 });

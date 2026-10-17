@@ -18,7 +18,7 @@
   --sombra-flotante: 0 4px 20px rgba(0, 0, 0, 0.08);
 
   --font-sistema: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-gotica: "UnifrakturMaguntia", serif;
+  --font-gotica: "Grenze Gotisch", serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -288,4 +288,19 @@ textarea:focus, textarea:focus-visible, input[type="text"]:focus {
 }
 .katex {
   font-size: 1.05em;
+}
+
+
+/* Móvil: durante el chat la página mide exactamente el área visible (sin rebotes ni huecos) */
+html.chat-activo,
+html.chat-activo body {
+  height: var(--app-h, 100dvh);
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Con el teclado abierto no hace falta el margen de la barra de inicio del iPhone */
+html.teclado-abierto .zona-entrada {
+  padding-bottom: 0.5rem !important;
 }

@@ -44,7 +44,7 @@ const ICONOS_MODO: Record<string, React.ElementType> = {
 
 const PASOS_MODO: Record<string, string[]> = {
   socratico: ['Dime el tema y la materia', 'Te explico un poco y te hago una pregunta', 'Avanzas paso a paso hasta explicarlo con tus palabras'],
-  explorar: ['Escribe tu pregunta o hipótesis', 'Buscamos y contrastamos información', 'Llegas a tu propia conclusión'],
+  explorar: ['Escribe tu pregunta o hipótesis', 'Te digo qué analizar y qué fuentes buscar', 'Las estudias en NotebookLM y concluyes'],
   argumento: ['Escribe tu tesis y tus razones', 'La pongo a prueba con preguntas y objeciones', 'Fortaleces o ajustas tu argumento'],
   verificar: ['Pega la afirmación y dónde la viste', 'La contrastamos con evidencia', 'Recibes un veredicto con sus razones'],
   auditar: ['Pega la pregunta y la respuesta de la otra IA', 'Revisamos errores, vacíos y sesgos', 'Decides qué conservar y qué no'],
@@ -184,8 +184,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     const observador = new ResizeObserver(() => {
       const alto = contenedor.clientHeight;
       const diferencia = altoPrevio - alto;
+      if (diferencia === 0) return;
+      // Si el estudiante estaba viendo el final, el final se queda pegado a la casilla
+      // (al abrir y al cerrar el teclado, en Android y en iPhone).
+      const distanciaAlFondo = contenedor.scrollHeight - contenedor.scrollTop - altoPrevio;
       altoPrevio = alto;
-      if (diferencia !== 0) contenedor.scrollTop += diferencia;
+      if (distanciaAlFondo < 120) {
+        contenedor.scrollTop = contenedor.scrollHeight;
+      } else {
+        contenedor.scrollTop += diferencia;
+      }
     });
     observador.observe(contenedor);
     return () => observador.disconnect();
@@ -459,7 +467,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
       )}
 
       {/* Hilo de mensajes scrollable */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-[74px] pb-6 space-y-6" onScroll={manejarScroll}>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-[74px] pb-2" onScroll={manejarScroll}>
         <div ref={listRef} className="max-w-[720px] mx-auto space-y-6">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
@@ -710,7 +718,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
       </div>
 
       {/* Campo de mensaje: tipo cápsula, flotante y centrado abajo (max-width 720px), radio 28px, fondo superficie, sombra suave, borde 1px #D2D2D7 */}
-      <div className="p-3 sm:pb-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0 bg-transparent">
+      <div className="zona-entrada px-3 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 shrink-0 bg-transparent">
         <div className="max-w-[720px] mx-auto relative flex flex-col">
           {/* Ficha de archivo adjunto previo al envío */}
           {attachedFile && (

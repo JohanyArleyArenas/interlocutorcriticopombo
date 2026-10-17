@@ -96,20 +96,41 @@ export default function App() {
   // así el encabezado queda fijo y solo se mueve el hilo del chat.
   useEffect(() => {
     const vv = window.visualViewport;
+    const raiz = document.documentElement;
+    raiz.classList.toggle('chat-activo', !!selectedModeKey);
+    const temporizadores: number[] = [];
     const ajustar = () => {
       const alto = vv ? vv.height : window.innerHeight;
-      document.documentElement.style.setProperty('--app-h', `${alto}px`);
-      if (selectedModeKey) window.scrollTo(0, 0);
+      raiz.style.setProperty('--app-h', `${Math.round(alto)}px`);
+      const el = document.activeElement as HTMLElement | null;
+      const escribiendo = !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT');
+      raiz.classList.toggle('teclado-abierto', escribiendo && window.matchMedia('(pointer: coarse)').matches);
+      if (selectedModeKey && (window.scrollY !== 0 || (vv && vv.offsetTop !== 0))) window.scrollTo(0, 0);
+    };
+    // El teclado de iPhone y Android se abre/cierra con animación: se vuelve a medir
+    // varias veces hasta que la altura final se estabiliza (evita que el chat quede a medias).
+    const ajustarEnCascada = () => {
+      ajustar();
+      temporizadores.splice(0).forEach((id) => window.clearTimeout(id));
+      [60, 160, 320, 600].forEach((ms) => temporizadores.push(window.setTimeout(ajustar, ms)));
     };
     ajustar();
     window.scrollTo({ top: 0, behavior: 'auto' });
-    vv?.addEventListener('resize', ajustar);
+    vv?.addEventListener('resize', ajustarEnCascada);
     vv?.addEventListener('scroll', ajustar);
-    window.addEventListener('resize', ajustar);
+    window.addEventListener('resize', ajustarEnCascada);
+    window.addEventListener('orientationchange', ajustarEnCascada);
+    document.addEventListener('focusin', ajustarEnCascada);
+    document.addEventListener('focusout', ajustarEnCascada);
     return () => {
-      vv?.removeEventListener('resize', ajustar);
+      temporizadores.forEach((id) => window.clearTimeout(id));
+      vv?.removeEventListener('resize', ajustarEnCascada);
       vv?.removeEventListener('scroll', ajustar);
-      window.removeEventListener('resize', ajustar);
+      window.removeEventListener('resize', ajustarEnCascada);
+      window.removeEventListener('orientationchange', ajustarEnCascada);
+      document.removeEventListener('focusin', ajustarEnCascada);
+      document.removeEventListener('focusout', ajustarEnCascada);
+      raiz.classList.remove('chat-activo', 'teclado-abierto');
     };
   }, [selectedModeKey]);
 
