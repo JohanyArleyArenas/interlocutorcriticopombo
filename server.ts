@@ -207,16 +207,31 @@ app.post('/api/chat', async (req, res) => {
 
     const modo = AGENTE.modos[modeKey];
 
-    // Truncate history: keep only last 12 messages, but preserve student's first message if it has an attachment
+    // Memoria de la conversación: se envían el inicio (saludo, primer mensaje y primera
+    // respuesta, donde suele quedar la ruta de pasos) y los mensajes más recientes.
+    // De la parte omitida se conservan las preguntas ya hechas, para que no se repitan.
+    const VENTANA_RECIENTE = 18;
     let slicedMessages = [...messages];
-    if (slicedMessages.length > 12) {
-      const firstMsg = slicedMessages[0];
-      const firstHasAttachment = Boolean(firstMsg && firstMsg.archivo);
-      if (firstHasAttachment) {
-        slicedMessages = [firstMsg, ...slicedMessages.slice(-11)];
-      } else {
-        slicedMessages = slicedMessages.slice(-12);
-      }
+    let notaMemoria = '';
+    if (slicedMessages.length > VENTANA_RECIENTE + 3) {
+      const iniciales = slicedMessages.slice(0, 3);
+      let recientes = slicedMessages.slice(-VENTANA_RECIENTE);
+      if (recientes[0]?.role === 'model') recientes = recientes.slice(1);
+      const omitidos = slicedMessages.slice(3, slicedMessages.length - recientes.length);
+      const preguntasPrevias = omitidos
+        .filter((m) => m.role === 'model')
+        .map((m) => {
+          const preguntas = String(m.text || '').replace(/\s+/g, ' ').match(/¿[^¿?]{3,300}\?/g);
+          return preguntas ? preguntas[preguntas.length - 1] : '';
+        })
+        .filter(Boolean)
+        .slice(-12);
+      notaMemoria =
+        `\n\nMEMORIA DE ESTA CONVERSACIÓN: por espacio se omitieron ${omitidos.length} mensajes intermedios; ves el inicio (tema y ruta) y los mensajes recientes. Retoma desde el punto actual, sin volver a empezar.` +
+        (preguntasPrevias.length
+          ? `\nPreguntas que ya le hiciste al estudiante en la parte omitida (no las repitas ni hagas variantes de ellas):\n- ${preguntasPrevias.join('\n- ')}`
+          : '');
+      slicedMessages = [...iniciales, ...recientes];
     }
 
     // Format current date in America/Bogota in Spanish
@@ -241,7 +256,7 @@ ${modo.instrucciones}
 
 ${reglaMatematicas}
 
-El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
+El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
 
     // Convert messages to Gemini API format
     const contents = slicedMessages.map((msg) => {
@@ -559,6 +574,41 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       error: 'Hubo un inconveniente al conectar con el interlocutor. Por favor intenta de nuevo.',
 
     });
+  }
+});
+
+// ===== Cierre de sesión: reflexión del estudiante (no consume cupo de Gemini) =====
+// Se guarda en la misma hoja: en «modo» aparece «… — CIERRE», en «mensaje» la reflexión,
+// en «turno» los mensajes que envió el estudiante y en «segundos» la duración total de la sesión.
+app.post('/api/cierre', (req, res) => {
+  try {
+    const b = (req.body || {}) as Record<string, unknown>;
+    const ip = String(req.ip || req.headers['x-forwarded-for'] || 'desconocida').split(',')[0].trim();
+    if (superaLimite('cierre:' + String(b.sesion || ip).slice(0, 60), 3, 20)) {
+      return res.status(429).json({ error: 'Ya registraste este cierre. Espera un momento.' });
+    }
+    const texto = (v: unknown, max = 2000) => String(v ?? '').trim().slice(0, max);
+    const modeKey = texto(b.modeKey, 40);
+    const modo = AGENTE.modos[modeKey];
+    const c = Number(b.confianza);
+    const confianza = c >= 1 && c <= 5 ? String(Math.round(c)) : 'sin respuesta';
+    registrarInteraccion({
+      fecha: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+      estudiante: texto(b.estudiante, 120),
+      sesion: texto(b.sesion, 60),
+      modo: `${modo ? modo.titulo : modeKey} — CIERRE`,
+      turno: Number(b.turnos) || 0,
+      mensaje: `Qué aprendí: ${texto(b.aprendi)}\nQué me quedó dudoso: ${texto(b.dudas) || '—'}\nConfianza para explicarlo sin ayuda (1 a 5): ${confianza}`,
+      adjunto: '',
+      respuesta: '',
+      fuentes: '',
+      modelo: 'cierre (sin IA)',
+      segundos: Math.max(0, Math.round(Number(b.segundos) || 0)),
+    });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.log('[Cierre] Error:', e?.message || e);
+    return res.status(500).json({ error: 'No se pudo guardar tu reflexión. Intenta de nuevo.' });
   }
 });
 

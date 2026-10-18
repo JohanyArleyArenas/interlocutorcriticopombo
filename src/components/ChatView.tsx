@@ -28,7 +28,9 @@ import {
   Scale,
   CheckCircle2,
   Cpu,
-  Upload
+  Upload,
+  Flag,
+  Download
 } from 'lucide-react';
 import { AGENTE, ModoConfig } from '../parametros.ts';
 
@@ -141,6 +143,81 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // Identificador de esta conversación (para agrupar los turnos en la hoja de registro)
   const sesionRef = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
+
+  // ===== Cierre de sesión: reflexión del estudiante y descarga de la conversación =====
+  const inicioSesionRef = useRef(Date.now());
+  const [cierreAbierto, setCierreAbierto] = useState(false);
+  const [cierreEstado, setCierreEstado] = useState<'editando' | 'enviando' | 'listo'>('editando');
+  const [cierreError, setCierreError] = useState('');
+  const [aprendi, setAprendi] = useState('');
+  const [dudas, setDudas] = useState('');
+  const [confianza, setConfianza] = useState(0);
+  const turnosEstudiante = messages.filter((m) => m.role === 'user').length;
+
+  const enviarCierre = async () => {
+    if (!aprendi.trim()) {
+      setCierreError('Escribe al menos qué aprendiste.');
+      return;
+    }
+    setCierreEstado('enviando');
+    setCierreError('');
+    try {
+      const r = await fetch('/api/cierre', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modeKey,
+          estudiante: estudiante || '',
+          sesion: sesionRef.current,
+          aprendi,
+          dudas,
+          confianza,
+          turnos: turnosEstudiante,
+          segundos: Math.round((Date.now() - inicioSesionRef.current) / 1000),
+        }),
+      });
+      if (!r.ok) {
+        const d: any = await r.json().catch(() => ({}));
+        throw new Error(d.error || 'No se pudo guardar tu reflexión. Intenta de nuevo.');
+      }
+      setCierreEstado('listo');
+    } catch (e: any) {
+      setCierreEstado('editando');
+      setCierreError(e?.message || 'No se pudo guardar tu reflexión. Intenta de nuevo.');
+    }
+  };
+
+  const descargarConversacion = () => {
+    const fecha = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+    const lineas: string[] = [`Interlocutor Crítico — ${modo.titulo}`, `Estudiante: ${estudiante || ''}`, `Fecha: ${fecha}`, ''];
+    messages.forEach((m) => {
+      lineas.push(m.role === 'user' ? 'YO:' : 'INTERLOCUTOR CRÍTICO:');
+      if (m.archivo) lineas.push(`[Archivo: ${m.archivo.nombre}]`);
+      lineas.push(m.text || '', '');
+    });
+    if (cierreEstado === 'listo') {
+      lineas.push(
+        'MI REFLEXIÓN FINAL',
+        `Qué aprendí: ${aprendi}`,
+        `Qué me quedó dudoso: ${dudas || '—'}`,
+        `Confianza para explicarlo sin ayuda (1 a 5): ${confianza || '—'}`
+      );
+    }
+    const blob = new Blob([lineas.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    const nombreArchivo = `${modo.titulo}-${estudiante || 'conversacion'}`
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    enlace.href = url;
+    enlace.download = `${nombreArchivo || 'conversacion'}.txt`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  };
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const [espacioFinal, setEspacioFinal] = useState(0);
@@ -545,9 +622,147 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
             </h2>
           </div>
 
-          <div className="w-12" />
+          <button
+              type="button"
+              onClick={() => {
+                setCierreAbierto(true);
+                setBarraVisible(true);
+              }}
+              disabled={turnosEstudiante === 0 || isLoading}
+              className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -mr-1 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+              aria-label="Terminar la sesión y reflexionar"
+            >
+              <Flag className="w-4 h-4" />
+              <span>Terminar</span>
+            </button>
         </div>
       </div>
+
+      {/* Cierre de sesión: reflexión metacognitiva y descarga */}
+      {cierreAbierto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4"
+          onClick={() => {
+            if (cierreEstado !== 'enviando') setCierreAbierto(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-cierre"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full sm:max-w-[460px] max-h-[92%] overflow-y-auto bg-[var(--color-superficie)] rounded-t-[20px] sm:rounded-[20px] shadow-xl p-6 flex flex-col gap-4"
+          >
+            {cierreEstado === 'listo' ? (
+              <>
+                <div>
+                  <h3 id="titulo-cierre" className="text-[20px] font-bold tracking-[-0.01em]">Sesión terminada</h3>
+                  <p className="mt-1 text-[14px] leading-snug text-[var(--color-secundario)]">
+                    Tu reflexión quedó guardada. Si quieres, descarga la conversación para repasarla o llevarla a NotebookLM.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={descargarConversacion}
+                  className="h-[46px] rounded-full border border-[var(--color-separador)] text-[16px] font-medium text-[var(--color-acento)] inline-flex items-center justify-center gap-2 hover:bg-[var(--color-fondo)] transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Descargar conversación
+                </button>
+                <button
+                  type="button"
+                  onClick={onBackToModos}
+                  className="h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[16px] font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Volver a los modos
+                </button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <h3 id="titulo-cierre" className="text-[20px] font-bold tracking-[-0.01em]">Antes de terminar</h3>
+                  <p className="mt-1 text-[14px] leading-snug text-[var(--color-secundario)]">
+                    Tómate un minuto para pensar en lo que hiciste. Tu reflexión le llega al docente.
+                  </p>
+                </div>
+                <label className="flex flex-col gap-1.5 text-[15px] font-medium">
+                  ¿Qué aprendiste o qué cambió en tu forma de pensar el tema?
+                  <textarea
+                    value={aprendi}
+                    onChange={(e) => {
+                      setAprendi(e.target.value);
+                      setCierreError('');
+                    }}
+                    rows={3}
+                    maxLength={1500}
+                    className="px-3 py-2 rounded-[12px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] font-normal resize-none focus:outline-none focus:border-[var(--color-acento)]"
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5 text-[15px] font-medium">
+                  <span>
+                    ¿Qué te quedó dudoso o qué te gustaría profundizar?{' '}
+                    <span className="font-normal text-[var(--color-secundario)]">(opcional)</span>
+                  </span>
+                  <textarea
+                    value={dudas}
+                    onChange={(e) => setDudas(e.target.value)}
+                    rows={2}
+                    maxLength={1500}
+                    className="px-3 py-2 rounded-[12px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] font-normal resize-none focus:outline-none focus:border-[var(--color-acento)]"
+                  />
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[15px] font-medium">¿Qué tan seguro te sientes de explicarlo sin ayuda?</span>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setConfianza(n)}
+                        aria-pressed={confianza === n}
+                        className={`flex-1 h-[42px] rounded-[12px] border text-[16px] font-semibold transition-colors ${
+                          confianza === n
+                            ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-white'
+                            : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)]'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-[12px] text-[var(--color-secundario)]">
+                    <span>Nada seguro</span>
+                    <span>Muy seguro</span>
+                  </div>
+                </div>
+                {cierreError && (
+                  <p className="text-[14px] text-[#B3261E]" role="alert">
+                    {cierreError}
+                  </p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setCierreAbierto(false)}
+                    disabled={cierreEstado === 'enviando'}
+                    className="flex-1 h-[46px] rounded-full border border-[var(--color-separador)] text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors"
+                  >
+                    Seguir conversando
+                  </button>
+                  <button
+                    type="button"
+                    onClick={enviarCierre}
+                    disabled={cierreEstado === 'enviando'}
+                    className="flex-1 h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+                  >
+                    {cierreEstado === 'enviando' ? 'Guardando…' : 'Terminar sesión'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Indicador de arrastre de archivo */}
       {isDragging && modo.adjuntos && (

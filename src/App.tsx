@@ -29,6 +29,7 @@ function guardarEstudiante(nombre: string) {
 function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
   const [nombre, setNombre] = useState('');
   const [aviso, setAviso] = useState('');
+  const [curso, setCurso] = useState('');
 
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,8 +46,13 @@ function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
       setAviso('Escribe tu nombre y tu apellido.');
       return;
     }
-    guardarEstudiante(limpio);
-    onListo(limpio);
+    if (!curso) {
+      setAviso('Elige tu curso.');
+      return;
+    }
+    const completo = `${limpio} · ${curso}`;
+    guardarEstudiante(completo);
+    onListo(completo);
   };
 
   return (
@@ -58,7 +64,7 @@ function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
       >
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.02em]">Antes de empezar</h1>
-          <p className="mt-1 text-[15px] text-[var(--color-secundario)]">Escribe tu nombre completo.</p>
+          <p className="mt-1 text-[15px] text-[var(--color-secundario)]">Escribe tu nombre completo y elige tu curso.</p>
         </div>
         <label htmlFor="nombre-estudiante" className="sr-only">Nombre completo</label>
         <input
@@ -74,6 +80,21 @@ function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
           placeholder="Nombre y apellidos"
           className="h-[48px] px-4 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[17px] focus:outline-none focus:border-[var(--color-acento)]"
         />
+        <label htmlFor="curso-estudiante" className="sr-only">Curso</label>
+        <select
+          id="curso-estudiante"
+          value={curso}
+          onChange={(e) => {
+            setCurso(e.target.value);
+            setAviso('');
+          }}
+          className="h-[48px] px-4 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[17px] focus:outline-none focus:border-[var(--color-acento)]"
+        >
+          <option value="">Elige tu curso</option>
+          <option value="10°">Grado 10°</option>
+          <option value="11°">Grado 11°</option>
+          <option value="Otro">Otro (docente o visitante)</option>
+        </select>
         {aviso && <p className="text-[14px] text-[#B3261E]" role="alert">{aviso}</p>}
         <button
           type="submit"
