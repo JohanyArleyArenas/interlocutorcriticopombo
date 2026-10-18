@@ -40,6 +40,8 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    /* Reserva siempre el espacio de la barra de desplazamiento: evita el salto lateral al entrar o salir de un modo */
+    scrollbar-gutter: stable;
     font-family: var(--font-sistema);
   }
 
@@ -299,6 +301,17 @@ html.chat-activo body {
   overflow: hidden;
   overscroll-behavior: none;
 }
+/* Escritorio: Chrome no reserva el espacio de la barra cuando la página tiene overflow: hidden,
+   así que al entrar o salir de un modo todo se corría unos píxeles. Mantener la barra visible (vacía)
+   durante el chat deja el ancho idéntico en todas las vistas. En móvil la barra es flotante y no afecta. */
+@media (pointer: fine) {
+  html,
+  html.chat-activo {
+    overflow-x: hidden;
+    overflow-y: scroll;
+  }
+}
+
 
 /* Con el teclado abierto no hace falta el margen de la barra de inicio del iPhone */
 html.teclado-abierto .zona-entrada {

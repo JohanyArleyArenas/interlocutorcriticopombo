@@ -225,9 +225,10 @@ app.post('/api/chat', async (req, res) => {
       timeZone: 'America/Bogota',
     }).format(new Date());
 
+    const avisoFecha = 'Tu conocimiento de entrenamiento tiene una fecha de corte anterior a hoy. No trates como error, dato futuro, anacronismo ni invención ninguna fecha, persona, cargo, acontecimiento o publicación igual o anterior a la FECHA DE HOY solo porque no la conoces.';
     const fechaLinea = modo.busqueda
-      ? `FECHA DE HOY: ${fechaHoy}. Usa la búsqueda de Google para obtener información actualizada.`
-      : `FECHA DE HOY: ${fechaHoy}.`;
+      ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} Usa la búsqueda de Google para obtener información actualizada.`
+      : `FECHA DE HOY: ${fechaHoy}. ${avisoFecha}`;
 
     const reglaMatematicas = `FÓRMULAS Y MATEMÁTICAS: Para fórmulas, usa siempre la notación $...$ de LaTeX bien formada (sin escapar dobles barras) y $$...$$ para fórmulas en bloque. Cuando sea sencillo, prefiere símbolos Unicode legibles (√76, 7² = 49, ×, ÷) dentro del texto normal.`;
 
