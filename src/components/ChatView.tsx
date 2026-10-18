@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { obtenerSugerenciasAleatorias } from '../sugerencias';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -226,13 +226,26 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     });
   };
 
-  useEffect(() => {
-    scrollToBottom(false);
+  // Al abrir un modo (solo el saludo, sin conversación) la vista empieza arriba, mostrando la presentación
+  // del modo. Antes bajaba al final y luego había que subir: eso producía los saltos al entrar.
+  const irAlInicio = () => {
+    const contenedor = getContenedor();
+    pegadoAlFondoRef.current = false;
+    if (contenedor) contenedor.scrollTop = 0;
+  };
+
+  useLayoutEffect(() => {
+    if (messages.length === 1) irAlInicio();
+    else scrollToBottom(false);
   }, []);
 
   useEffect(() => {
-    // Estilo ChatGPT: el hilo siempre queda mostrando el final de la conversación
+    // Estilo ChatGPT: cuando ya hay conversación, el hilo queda mostrando el final
     setEspacioFinal(0);
+    if (messages.length === 1 && !isLoading && !errorMessage) {
+      irAlInicio();
+      return;
+    }
     pegadoAlFondoRef.current = true;
     requestAnimationFrame(() => scrollToBottom(false));
   }, [messages.length, isLoading, errorMessage]);
@@ -527,7 +540,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
 
           {/* Título del modo centrado */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <h2 className="text-[16px] font-semibold text-[var(--color-texto)] tracking-tight truncate max-w-[280px] sm:max-w-[400px]">
+            <h2 className="text-[16px] font-semibold text-[var(--color-texto)] tracking-tight truncate leading-[1.5] py-0.5 max-w-[280px] sm:max-w-[400px]">
               {modo.titulo}
             </h2>
           </div>

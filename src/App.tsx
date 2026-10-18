@@ -77,7 +77,7 @@ function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
         {aviso && <p className="text-[14px] text-[#B3261E]" role="alert">{aviso}</p>}
         <button
           type="submit"
-          className="h-[48px] rounded-full bg-[var(--color-acento)] text-white text-[17px] font-semibold hover:opacity-90 transition-opacity"
+          className="h-[48px] rounded-full bg-[var(--color-acento)] text-white text-[17px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
         >
           Entrar
         </button>
