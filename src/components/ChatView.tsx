@@ -648,7 +648,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
       {/* Cierre de sesión: reflexión metacognitiva y descarga */}
       {cierreAbierto && (
         <div
-          className="fixed inset-0 z-50 bg-black/30 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4"
+          className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[2px] flex items-center justify-center px-4 sm:px-6 py-6"
           onClick={() => {
             if (cierreEstado !== 'enviando') setCierreAbierto(false);
           }}
@@ -658,115 +658,142 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
             aria-modal="true"
             aria-labelledby="titulo-cierre"
             onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-[460px] max-h-[92%] overflow-y-auto bg-[var(--color-superficie)] rounded-t-[20px] sm:rounded-[20px] shadow-xl p-6 flex flex-col gap-4"
+            className="message-appear w-full max-w-[720px] max-h-full overflow-y-auto overscroll-contain rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
           >
-            {cierreEstado === 'listo' ? (
-              <>
-                <div>
-                  <h3 id="titulo-cierre" className="text-[20px] font-bold tracking-[-0.01em]">Sesión terminada</h3>
-                  <p className="mt-1 text-[14px] leading-snug text-[var(--color-secundario)]">
-                    Tu reflexión quedó guardada. Si quieres, descarga la conversación para repasarla o llevarla a NotebookLM.
+            <div className="p-5 sm:p-6 flex flex-col gap-5">
+              {/* Encabezado con el mismo estilo de la tarjeta de bienvenida del modo */}
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--color-acento)]/10 text-[var(--color-acento)] flex items-center justify-center shrink-0">
+                  {cierreEstado === 'listo' ? (
+                    <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
+                  ) : (
+                    <Flag className="w-6 h-6" aria-hidden="true" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 id="titulo-cierre" className="text-[19px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
+                    {cierreEstado === 'listo' ? 'Sesión terminada' : 'Antes de terminar'}
+                  </h3>
+                  <p className="text-[15px] text-[var(--color-secundario)] leading-relaxed mt-1">
+                    {cierreEstado === 'listo'
+                      ? 'Tu reflexión quedó guardada. Puedes descargar la conversación para repasarla o llevarla a NotebookLM.'
+                      : 'Piensa un momento en lo que hiciste. Tu reflexión le llega al docente.'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={descargarConversacion}
-                  className="h-[46px] rounded-full border border-[var(--color-separador)] text-[16px] font-medium text-[var(--color-acento)] inline-flex items-center justify-center gap-2 hover:bg-[var(--color-fondo)] transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar conversación
-                </button>
-                <button
-                  type="button"
-                  onClick={onBackToModos}
-                  className="h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[16px] font-semibold hover:opacity-90 transition-opacity"
-                >
-                  Volver a los modos
-                </button>
-              </>
-            ) : (
-              <>
-                <div>
-                  <h3 id="titulo-cierre" className="text-[20px] font-bold tracking-[-0.01em]">Antes de terminar</h3>
-                  <p className="mt-1 text-[14px] leading-snug text-[var(--color-secundario)]">
-                    Tómate un minuto para pensar en lo que hiciste. Tu reflexión le llega al docente.
-                  </p>
-                </div>
-                <label className="flex flex-col gap-1.5 text-[15px] font-medium">
-                  ¿Qué aprendiste o qué cambió en tu forma de pensar el tema?
-                  <textarea
-                    value={aprendi}
-                    onChange={(e) => {
-                      setAprendi(e.target.value);
-                      setCierreError('');
-                    }}
-                    rows={3}
-                    maxLength={1500}
-                    className="px-3 py-2 rounded-[12px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] font-normal resize-none focus:outline-none focus:border-[var(--color-acento)]"
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5 text-[15px] font-medium">
-                  <span>
-                    ¿Qué te quedó dudoso o qué te gustaría profundizar?{' '}
-                    <span className="font-normal text-[var(--color-secundario)]">(opcional)</span>
-                  </span>
-                  <textarea
-                    value={dudas}
-                    onChange={(e) => setDudas(e.target.value)}
-                    rows={2}
-                    maxLength={1500}
-                    className="px-3 py-2 rounded-[12px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] font-normal resize-none focus:outline-none focus:border-[var(--color-acento)]"
-                  />
-                </label>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[15px] font-medium">¿Qué tan seguro te sientes de explicarlo sin ayuda?</span>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setConfianza(n)}
-                        aria-pressed={confianza === n}
-                        className={`flex-1 h-[42px] rounded-[12px] border text-[16px] font-semibold transition-colors ${
-                          confianza === n
-                            ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-white'
-                            : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)]'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex justify-between text-[12px] text-[var(--color-secundario)]">
-                    <span>Nada seguro</span>
-                    <span>Muy seguro</span>
-                  </div>
-                </div>
-                {cierreError && (
-                  <p className="text-[14px] text-[#B3261E]" role="alert">
-                    {cierreError}
-                  </p>
-                )}
-                <div className="flex gap-2 pt-1">
+              </div>
+
+              {cierreEstado === 'listo' ? (
+                <div className="flex flex-col sm:flex-row gap-2.5">
                   <button
                     type="button"
-                    onClick={() => setCierreAbierto(false)}
-                    disabled={cierreEstado === 'enviando'}
-                    className="flex-1 h-[46px] rounded-full border border-[var(--color-separador)] text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors"
+                    onClick={descargarConversacion}
+                    className="flex-1 h-[46px] rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] inline-flex items-center justify-center gap-2 hover:bg-[var(--color-fondo)] transition-colors"
                   >
-                    Seguir conversando
+                    <Download className="w-4 h-4" aria-hidden="true" />
+                    Descargar conversación
                   </button>
                   <button
                     type="button"
-                    onClick={enviarCierre}
-                    disabled={cierreEstado === 'enviando'}
-                    className="flex-1 h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+                    onClick={onBackToModos}
+                    className="flex-1 h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity"
                   >
-                    {cierreEstado === 'enviando' ? 'Guardando…' : 'Terminar sesión'}
+                    Volver a los modos
                   </button>
                 </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <div className="flex flex-col gap-4">
+                    <label className="flex flex-col gap-2">
+                      <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">1</span>
+                        <span className="pt-0.5">¿Qué aprendiste o qué cambió en tu forma de pensar el tema?</span>
+                      </span>
+                      <textarea
+                        value={aprendi}
+                        onChange={(e) => {
+                          setAprendi(e.target.value);
+                          setCierreError('');
+                        }}
+                        rows={2}
+                        maxLength={1500}
+                        placeholder="Escríbelo con tus palabras…"
+                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">2</span>
+                        <span className="pt-0.5">
+                          ¿Qué te quedó dudoso o qué te gustaría profundizar?{' '}
+                          <span className="font-normal text-[var(--color-secundario)]">(opcional)</span>
+                        </span>
+                      </span>
+                      <textarea
+                        value={dudas}
+                        onChange={(e) => setDudas(e.target.value)}
+                        rows={2}
+                        maxLength={1500}
+                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                      />
+                    </label>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">3</span>
+                        <span className="pt-0.5">¿Qué tan seguro te sientes de explicarlo sin ayuda?</span>
+                      </span>
+                      <div className="flex gap-2" role="group" aria-label="Nivel de seguridad de 1 a 5">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setConfianza(n)}
+                            aria-pressed={confianza === n}
+                            className={`flex-1 h-10 rounded-[12px] border text-[15px] font-semibold transition-colors ${
+                              confianza === n
+                                ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-white'
+                                : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)] hover:border-[var(--color-acento)]/50'
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex justify-between text-[12px] text-[var(--color-secundario)] px-0.5">
+                        <span>Nada seguro</span>
+                        <span>Muy seguro</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {cierreError && (
+                    <p className="text-[14px] text-[#B3261E] -mt-1" role="alert">
+                      {cierreError}
+                    </p>
+                  )}
+
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setCierreAbierto(false)}
+                      disabled={cierreEstado === 'enviando'}
+                      className="flex-1 h-[46px] px-3 whitespace-nowrap rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[14px] sm:text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors"
+                    >
+                      Seguir conversando
+                    </button>
+                    <button
+                      type="button"
+                      onClick={enviarCierre}
+                      disabled={cierreEstado === 'enviando'}
+                      className="flex-1 h-[46px] px-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-white text-[14px] sm:text-[15px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+                    >
+                      {cierreEstado === 'enviando' ? 'Guardando…' : 'Terminar sesión'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
