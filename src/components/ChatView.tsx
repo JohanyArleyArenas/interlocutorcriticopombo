@@ -60,6 +60,9 @@ const EJEMPLOS_MODO: Record<string, string[]> = {
   verificar: ['«Tomar agua fría después de comer es peligroso». Lo vi en WhatsApp.'],
 };
 
+// Modos que muestran el botón «Terminar» (cierre con reflexión)
+const MODOS_CON_CIERRE = ['socratico', 'argumento'];
+
 export interface ChatArchivo {
   nombre: string;
   mimeType: string;
@@ -622,19 +625,23 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
             </h2>
           </div>
 
-          <button
-              type="button"
-              onClick={() => {
-                setCierreAbierto(true);
-                setBarraVisible(true);
-              }}
-              disabled={turnosEstudiante === 0 || isLoading}
-              className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -mr-1 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
-              aria-label="Terminar la sesión y reflexionar"
-            >
-              <Flag className="w-4 h-4" />
-              <span>Terminar</span>
-            </button>
+          {MODOS_CON_CIERRE.includes(modeKey) ? (
+            <button
+                type="button"
+                onClick={() => {
+                  setCierreAbierto(true);
+                  setBarraVisible(true);
+                }}
+                disabled={turnosEstudiante === 0 || isLoading}
+                className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -mr-1 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                aria-label="Terminar la sesión y reflexionar"
+              >
+                <Flag className="w-4 h-4" />
+                <span>Terminar</span>
+              </button>
+            ) : (
+              <div className="w-12" />
+            )}
         </div>
       </div>
 
