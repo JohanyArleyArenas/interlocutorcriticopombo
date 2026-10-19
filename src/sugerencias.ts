@@ -38,7 +38,7 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'filosofía',
     texto: 'Tesis: la identidad personal no reside en el cuerpo sino en la continuidad de la memoria y la conciencia.',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
   {
     id: 'filo-4',
@@ -52,7 +52,7 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'filosofía',
     texto: '¿Qué significa que algo sea «justo»: dar a todos lo mismo o dar a cada uno según sus necesidades?',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
 
   // ÉTICA (5)
@@ -68,14 +68,14 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'ética',
     texto: '¿Deberían los algoritmos de autos autónomos priorizar salvar al pasajero o a los peatones en un choque inevitable?',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
   {
     id: 'etica-3',
     categoria: 'ética',
     texto: 'Tesis: los seres humanos tenemos obligaciones morales directas hacia los animales no humanos.',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
   {
     id: 'etica-4',
@@ -89,7 +89,7 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'ética',
     texto: '¿El fin justifica los medios cuando se busca evitar un mal mayor para toda una sociedad?',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
 
   // CIENCIA (5)
@@ -105,7 +105,7 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'ciencia',
     texto: '¿Por qué el agua caliente a veces se congela más rápido que la fría (el efecto Mpemba)?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'cien-3',
@@ -119,7 +119,7 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'ciencia',
     texto: '¿Qué evidencias respaldan la teoría de la evolución biológica por selección natural?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'cien-5',
@@ -186,7 +186,7 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'lenguaje',
     texto: 'Tesis: el uso de conectores lógicos variados es más determinante para la claridad de un texto que el léxico rebuscado.',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
   {
     id: 'leng-4',
@@ -223,21 +223,21 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'tecnología e IA',
     texto: '¿Cómo funcionan los algoritmos de recomendación de TikTok e Instagram y cómo crean cámaras de eco?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'tec-4',
     categoria: 'tecnología e IA',
     texto: 'Tesis: la automatización mediante IA generativa creará más oportunidades de empleo de las que destruirá.',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
   {
     id: 'tec-5',
     categoria: 'tecnología e IA',
     texto: '¿Cuáles son los principales riesgos de seguridad y privacidad al usar modelos de lenguaje en la escuela?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
 
   // SOCIEDAD (5)
@@ -246,28 +246,28 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'sociedad',
     texto: 'Tesis: el voto debería ser obligatorio en Colombia para fortalecer la legitimidad democrática.',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
   {
     id: 'soc-2',
     categoria: 'sociedad',
     texto: '¿Qué causas estructurales explican la brecha económica entre zonas urbanas y rurales en Colombia?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'soc-3',
     categoria: 'sociedad',
     texto: '¿Debería prohibirse el uso de teléfonos celulares durante la jornada escolar en secundaria?',
     modoSugerido: 'argumento',
-    modoTitulo: 'Poner a prueba mi argumento',
+    modoTitulo: 'Taller de argumentos',
   },
   {
     id: 'soc-4',
     categoria: 'sociedad',
     texto: '¿Cómo afecta la gentrificación y el turismo masivo a los habitantes tradicionales de una ciudad?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'soc-5',
@@ -290,14 +290,14 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'vida cotidiana',
     texto: '¿Existe realmente el «multitasking» o nuestro cerebro solo cambia rápidamente de una tarea a otra perdiendo foco?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'vida-3',
     categoria: 'vida cotidiana',
     texto: '¿Cómo afecta la falta de sueño de los adolescentes a su capacidad de retención y regulación emocional?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'vida-4',
@@ -334,7 +334,7 @@ export const BANCO_SUGERENCIAS: Sugerencia[] = [
     categoria: 'noticias y desinformación',
     texto: '¿Cómo detectar si una fotografía o video viral en redes sociales fue alterado con deepfake o IA?',
     modoSugerido: 'explorar',
-    modoTitulo: 'Investigar una pregunta',
+    modoTitulo: 'Guía de investigación',
   },
   {
     id: 'notic-4',

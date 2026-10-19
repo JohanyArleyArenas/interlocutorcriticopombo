@@ -46,11 +46,11 @@ const ICONOS_MODO: Record<string, React.ElementType> = {
 
 const PASOS_MODO: Record<string, string[]> = {
   socratico: ['Dime el tema y la materia', 'Te explico un poco y te hago una pregunta', 'Avanzas paso a paso hasta explicarlo con tus palabras'],
-  explorar: ['Escribe tu pregunta o hipótesis', 'Te digo qué analizar y qué fuentes buscar', 'Las estudias en NotebookLM y concluyes'],
-  argumento: ['Escribe tu tesis y tus razones', 'La pongo a prueba con preguntas y objeciones', 'Fortaleces o ajustas tu argumento'],
+  explorar: ['Afinamos tu pregunta de investigación', 'Aprendes a buscar fuentes académicas gratuitas', 'Las estudias en NotebookLM y evalúas lo hallado'],
+  argumento: ['Escribe tu tesis y tus razones', 'La revisamos por etapas: estructura, falacias, sesgos y objeciones', 'La pules hasta que esté lista para redactar'],
   verificar: ['Pega la afirmación y dónde la viste', 'La contrastamos con evidencia', 'Recibes un veredicto con sus razones'],
   auditar: ['Pega la pregunta y la respuesta de la otra IA', 'Revisamos errores, vacíos y sesgos', 'Decides qué conservar y qué no'],
-  escrito: ['Sube tu archivo o pega tu texto', 'Señalo fortalezas y aspectos por mejorar', 'Tú haces las correcciones'],
+  escrito: ['Sube tu archivo o pega tu texto', 'Reviso por rondas: estructura, párrafos, oraciones y ortografía', 'Corriges y me envías cada nueva versión'],
 };
 
 const EJEMPLOS_MODO: Record<string, string[]> = {
@@ -606,12 +606,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
         style={{ transform: barraVisible ? 'translateY(0)' : 'translateY(-100%)' }}
         onFocus={() => setBarraVisible(true)}
       >
-        <div className="max-w-[720px] mx-auto h-full flex items-center justify-between relative">
+        <div className="max-w-[720px] mx-auto h-full flex items-center justify-between gap-1 relative">
           {/* Botón ‹ Modos */}
           <button
             onClick={onBackToModos}
             type="button"
-            className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -ml-1 focus-visible:outline-none"
+            className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -ml-1 shrink-0 focus-visible:outline-none"
             aria-label="Volver a la selección de modos"
           >
             <ChevronLeft className="w-5 h-5 -mr-1" />
@@ -619,8 +619,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
           </button>
 
           {/* Título del modo centrado */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <h2 className="text-[16px] font-semibold text-[var(--color-texto)] tracking-tight truncate leading-[1.5] py-0.5 max-w-[280px] sm:max-w-[400px]">
+          <div className="flex-1 min-w-0 flex items-center justify-center pointer-events-none px-2">
+            <h2 className="text-[15px] sm:text-[16px] font-semibold text-[var(--color-texto)] tracking-tight truncate leading-[1.5] py-0.5 max-w-full sm:max-w-[400px]">
               {modo.titulo}
             </h2>
           </div>
@@ -633,7 +633,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                   setBarraVisible(true);
                 }}
                 disabled={turnosEstudiante === 0 || isLoading}
-                className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -mr-1 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -mr-1 shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
                 aria-label="Terminar la sesión y reflexionar"
               >
                 <Flag className="w-4 h-4" />

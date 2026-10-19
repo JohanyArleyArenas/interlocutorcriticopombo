@@ -210,7 +210,7 @@ app.post('/api/chat', async (req, res) => {
     // Memoria de la conversación: se envían el inicio (saludo, primer mensaje y primera
     // respuesta, donde suele quedar la ruta de pasos) y los mensajes más recientes.
     // De la parte omitida se conservan las preguntas ya hechas, para que no se repitan.
-    const VENTANA_RECIENTE = 18;
+    const VENTANA_RECIENTE = 24;
     let slicedMessages = [...messages];
     let notaMemoria = '';
     if (slicedMessages.length > VENTANA_RECIENTE + 3) {
@@ -358,7 +358,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
     const generar = async (model: string, cfg: any): Promise<any> => {
       // Si un modelo tarda demasiado en empezar a responder (saturado o casi sin cupo), se corta y se pasa al siguiente
       const controlador = new AbortController();
-      const limiteMs = quiereStream ? 10_000 : 25_000;
+      const limiteMs = quiereStream ? 15_000 : 25_000;
       const temporizador = setTimeout(() => controlador.abort(), limiteMs);
       const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
       try {
@@ -439,10 +439,10 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
         }
       } catch (err: any) {
         lastError = err;
-        // Modelo demasiado lento: se aparta 3 minutos y se pasa al siguiente sin esperar
+        // Modelo demasiado lento: se aparta 1 minuto y se pasa al siguiente sin esperar
         if (err?.name === 'AbortError' || /abort/i.test(String(err?.message || ''))) {
           console.log(`[Lento] ${model} no empezó a responder a tiempo; se pasa al siguiente`);
-          agotadoHasta.set(claveCupo(model, !!modo.busqueda), Date.now() + 3 * 60_000);
+          agotadoHasta.set(claveCupo(model, !!modo.busqueda), Date.now() + 60_000);
           continue;
         }
         let cupoLargo = false;
@@ -501,7 +501,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
         }
         try {
           const fallbackConfig: any = {
-            systemInstruction: systemInstruction + "\n\nIMPORTANTE: en esta respuesta NO tienes acceso a la búsqueda en Google. No digas que buscaste ni que consultaste fuentes en línea. Responde solo con lo que sabes, aclara que puede estar desactualizado y, si es una verificación, da un veredicto provisional o 'Sin evidencia suficiente'. No escribas ningún aviso ni nota sobre la falta de búsqueda: la aplicación ya muestra ese aviso al estudiante.",
+            systemInstruction: systemInstruction + "\n\nIMPORTANTE: en esta respuesta NO tienes acceso a la búsqueda en Google. No digas que buscaste ni que consultaste fuentes en línea. Responde solo con lo que sabes, aclara que puede estar desactualizado y, si es una verificación, escribe «Veredicto provisional» (o 'Sin evidencia suficiente'), cambia el título «Qué dicen las fuentes» por «Lo que se sabe (sin fuentes consultadas)» y no atribuyas datos a fuentes que no consultaste; en «Lectura lateral» indica dónde confirmarlo. No escribas ningún aviso ni nota sobre la falta de búsqueda: la aplicación ya muestra ese aviso al estudiante.",
             temperature: typeof modo.temperatura === 'number' ? modo.temperatura : 0.7,
             // + 1500: margen para el razonamiento interno, que también consume tokens de salida y cortaba las respuestas
       maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
