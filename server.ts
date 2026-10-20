@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { AGENTE } from './src/parametros.ts';
+import { AREAS_ICFES, PREGUNTAS, CUADERNILLOS, buscarPregunta, paginasDePregunta, pdfDePagina, precargarCuadernillos, estadoBanco, diagnostico, contenidoDePregunta, contenidoComoTexto, sincronizarCarpeta, estadoSincronizacion } from './icfes.ts';
 
 dotenv.config();
 
@@ -141,6 +142,7 @@ async function descubrirModelos(): Promise<void> {
   }
 }
 descubrirModelos();
+precargarCuadernillos();
 
 // ===== Límite de uso (protege el cupo de la API) =====
 // Por sesión de estudiante y, de forma más generosa, por red (todo un salón comparte la misma IP).
@@ -245,7 +247,73 @@ app.post('/api/chat', async (req, res) => {
       ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} Usa la búsqueda de Google para obtener información actualizada.`
       : `FECHA DE HOY: ${fechaHoy}. ${avisoFecha}`;
 
-    const reglaMatematicas = `FÓRMULAS Y MATEMÁTICAS: Para fórmulas, usa siempre la notación $...$ de LaTeX bien formada (sin escapar dobles barras) y $$...$$ para fórmulas en bloque. Cuando sea sencillo, prefiere símbolos Unicode legibles (√76, 7² = 49, ×, ÷) dentro del texto normal.`;
+    // ===== Entrenador Saber 11: pregunta activa, páginas del cuadernillo y clave oficial =====
+let contextoIcfes = '';
+const partesIcfes: any[] = [];
+let registroIcfes = '';
+let resultadoIcfes: { id: string; clave: string; correcta: boolean; area: string } | null = null;
+// El tutor y el entrenador razonan un poco más (cálculos, lectura de gráficas y páginas del cuadernillo)
+let razonarMas = modeKey === 'tutor';
+if (modeKey === 'icfes') {
+  const ic = ((req.body as any)?.icfes || {}) as { id?: string; accion?: string; respuesta?: string };
+  const pregunta = buscarPregunta(String(ic.id || ''));
+  if (!pregunta) return res.status(400).json({ error: 'Primero elige un área para recibir una pregunta.' });
+  const accion = ['pista', 'responder', 'conversar'].includes(String(ic.accion)) ? String(ic.accion) : 'conversar';
+  const respuesta = String(ic.respuesta || '').toUpperCase().slice(0, 1);
+  if (accion === 'responder' && !pregunta.opciones.includes(respuesta)) {
+    return res.status(400).json({ error: 'Elige una de las opciones de respuesta.' });
+  }
+  const respuestaAnterior = [...(messages as any[])]
+    .reverse()
+    .find((m) => m?.icfes?.id === pregunta.id && m?.icfes?.accion === 'responder')?.icfes?.respuesta;
+  const respuestaEst = accion === 'responder' ? respuesta : String(respuestaAnterior || '').toUpperCase().slice(0, 1);
+  const yaRespondio = accion === 'responder' || pregunta.opciones.includes(respuestaEst);
+  const area = AREAS_ICFES[pregunta.cuadernillo.area];
+  razonarMas = true;
+  let ubic: Awaited<ReturnType<typeof paginasDePregunta>> | null = null;
+  try {
+    ubic = await paginasDePregunta(pregunta);
+    for (const idx of ubic.paginas.slice(-3)) {
+      const pdf = await pdfDePagina(pregunta.cuadernillo, idx);
+      partesIcfes.push({ inlineData: { mimeType: 'application/pdf', data: Buffer.from(pdf).toString('base64') } });
+    }
+  } catch (e: any) {
+    console.log('[ICFES] No se pudieron adjuntar las páginas:', e?.message || e);
+  }
+  // Texto de la pregunta tal como lo ve el estudiante (lectura, enunciado y opciones)
+    let textoPregunta = '';
+    try {
+      const cont = await contenidoDePregunta(pregunta);
+      if (cont) textoPregunta = `El estudiante ve la pregunta así (texto extraído del cuadernillo; las figuras, tablas y fórmulas las ve recortadas tal como están en la página adjunta):\n"""\n${contenidoComoTexto(cont)}\n"""\n`;
+    } catch {}
+    const examen = pregunta.cuadernillo.examenes[pregunta.examen]?.nombre;
+  const ubicTexto =
+    ubic && partesIcfes.length
+      ? (partesIcfes.length > 1
+          ? `Te adjunto ${partesIcfes.length} páginas del cuadernillo: la primera trae el texto o la situación que comparten varias preguntas y la pregunta ${pregunta.numero} está en la última, `
+          : `Te adjunto la página del cuadernillo donde está la pregunta ${pregunta.numero}, `) +
+        `más o menos al ${Math.round((ubic.y || 0) * 100)} % de la altura de la página. La página puede tener otras preguntas: ocúpate SOLO de la pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''}.`
+      : 'No pude adjuntar la página de la pregunta: dile al estudiante que en este momento no puedes verla y pídele que intente con otra pregunta.';
+  contextoIcfes =
+    `\n\nPREGUNTA ACTIVA DEL ENTRENADOR: pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''} — ${pregunta.cuadernillo.titulo}. Área: ${area?.nombre}. Opciones de respuesta: ${pregunta.opciones.join(', ')}.\n${ubicTexto}\n${textoPregunta}${area?.competencias || ''}\n` +
+    (yaRespondio
+      ? `CLAVE OFICIAL DEL ICFES: ${pregunta.clave}. Es la respuesta correcta según la tabla de respuestas del cuadernillo: no la discutas ni la cambies. Si tu análisis no coincide con ella, vuelve a leer la pregunta en la página: el error está en tu lectura.` +
+        (respuestaEst ? `\nRESPUESTA DEL ESTUDIANTE: ${respuestaEst} (${respuestaEst === pregunta.clave ? 'CORRECTA' : 'INCORRECTA'}).` : '')
+      : 'El estudiante TODAVÍA NO HA RESPONDIDO: no reveles cuál opción es la correcta, no la insinúes y no descartes opciones de forma que la delate.') +
+    `\nNUMERACIÓN: el estudiante ve esta pregunta con otra numeración (la de su práctica), así que no menciones el número que tiene en el cuadernillo; di «esta pregunta».\nACCIÓN SOLICITADA: ${
+      accion === 'responder'
+        ? 'B) RETROALIMENTAR LA RESPUESTA (usa la estructura indicada).'
+        : accion === 'pista'
+        ? 'A) DAR UNA PISTA DE ESTRATEGIA (sin revelar la respuesta).'
+        : 'C) CONVERSAR SOBRE ESTA PREGUNTA.'
+    }`;
+  registroIcfes = `ICFES ${pregunta.id} · ${accion}${respuestaEst ? ` · eligió ${respuestaEst} · clave ${pregunta.clave}` : ''}`;
+  if (accion === 'responder') {
+    resultadoIcfes = { id: pregunta.id, clave: pregunta.clave, correcta: respuesta === pregunta.clave, area: pregunta.cuadernillo.area };
+  }
+}
+
+const reglaMatematicas = `FÓRMULAS Y MATEMÁTICAS: Para fórmulas, usa siempre la notación $...$ de LaTeX bien formada (sin escapar dobles barras) y $$...$$ para fórmulas en bloque. Cuando sea sencillo, prefiere símbolos Unicode legibles (√76, 7² = 49, ×, ÷) dentro del texto normal.`;
 
     const systemInstruction = `${AGENTE.parametros}
 
@@ -256,7 +324,7 @@ ${modo.instrucciones}
 
 ${reglaMatematicas}
 
-El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
+El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}${contextoIcfes}`;
 
     // Convert messages to Gemini API format
     const contents = slicedMessages.map((msg) => {
@@ -299,7 +367,13 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
       };
     });
 
-      // Preguntas de cálculo (matemáticas, física, química): se razona un poco más y con menos
+      // Entrenador Saber 11: las páginas del cuadernillo acompañan el último mensaje del estudiante
+if (partesIcfes.length) {
+  const ultimoUsuario: any = [...contents].reverse().find((c: any) => c.role === 'user');
+  if (ultimoUsuario) ultimoUsuario.parts = [...partesIcfes, ...ultimoUsuario.parts];
+}
+
+// Preguntas de cálculo (matemáticas, física, química): se razona un poco más y con menos
     // creatividad para no equivocarse en las operaciones. El resto sigue rápido (LOW).
     const contextoReciente = slicedMessages.slice(-4).map((m: any) => m.text || '').join('\n');
     const esCuantitativo =
@@ -307,16 +381,17 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
         contextoReciente
       );
     const temperaturaBase = typeof modo.temperatura === 'number' ? modo.temperatura : 0.7;
+const razonar = esCuantitativo || razonarMas;
 
     const config: any = {
       systemInstruction: esCuantitativo
         ? `${systemInstruction}\n\nESTA CONVERSACIÓN INCLUYE CÁLCULOS: aplica con especial cuidado las reglas de PRECISIÓN EN MATEMÁTICAS Y CIENCIAS.`
         : systemInstruction,
-      temperature: esCuantitativo ? Math.min(temperaturaBase, 0.3) : temperaturaBase,
+      temperature: razonar ? Math.min(temperaturaBase, 0.3) : temperaturaBase,
       // El razonamiento interno también consume tokens de salida: se deja margen para no cortar respuestas
-      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + (esCuantitativo ? 3000 : 1500),
+      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + (razonar ? 3000 : 1500),
       // El diálogo socrático sin cálculos es conversación breve: piensa lo mínimo para responder más rápido
-      thinkingConfig: { thinkingLevel: (esCuantitativo ? 'MEDIUM' : modeKey === 'socratico' ? 'MINIMAL' : 'LOW') as any },
+      thinkingConfig: { thinkingLevel: (razonar ? 'MEDIUM' : modeKey === 'socratico' ? 'MINIMAL' : 'LOW') as any },
     };
 
     if (modo.busqueda) {
@@ -358,7 +433,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
     const generar = async (model: string, cfg: any): Promise<any> => {
       // Si un modelo tarda demasiado en empezar a responder (saturado o casi sin cupo), se corta y se pasa al siguiente
       const controlador = new AbortController();
-      const limiteMs = quiereStream ? 15_000 : 25_000;
+      const limiteMs = quiereStream ? (razonar ? 45_000 : 15_000) : (razonar ? 50_000 : 25_000);
       const temporizador = setTimeout(() => controlador.abort(), limiteMs);
       const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
       try {
@@ -539,17 +614,17 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}`;
         modo: modo.titulo,
         turno: mensajesEst.length,
         mensaje: ultimoEst?.text || '',
-        adjunto: ultimoEst?.archivo?.nombre || '',
+        adjunto: registroIcfes || ultimoEst?.archivo?.nombre || '',
         respuesta: replyText,
         fuentes: fuentes.map((f) => f.url).join('\n'),
         modelo: modeloUsado,
         segundos: Math.round((Date.now() - tInicio) / 100) / 10,
       });
       if (quiereStream) {
-        enviarEvento({ t: 'fin', reply: replyText, fuentes });
+        enviarEvento({ t: 'fin', reply: replyText, fuentes, ...(resultadoIcfes ? { icfes: resultadoIcfes } : {}) });
         return res.end();
       }
-      return res.json({ reply: replyText, fuentes });
+      return res.json({ reply: replyText, fuentes, ...(resultadoIcfes ? { icfes: resultadoIcfes } : {}) });
     }
 
     const is429 = lastError?.status === 429 || (typeof lastError?.message === 'string' && lastError.message.includes('429'));
@@ -610,6 +685,151 @@ app.post('/api/cierre', (req, res) => {
     console.log('[Cierre] Error:', e?.message || e);
     return res.status(500).json({ error: 'No se pudo guardar tu reflexión. Intenta de nuevo.' });
   }
+});
+
+// ===== Entrenador Saber 11: banco de preguntas reales (cuadernillos del ICFES en Drive) =====
+const ipDe = (req: any) => String(req.ip || req.headers['x-forwarded-for'] || 'desconocida').split(',')[0].trim();
+
+app.get('/api/icfes/areas', (_req, res) => {
+  const estado = estadoBanco();
+  res.json({
+    areas: Object.entries(AREAS_ICFES).map(([clave, a]) => ({
+      clave,
+      nombre: a.nombre,
+      preguntas: PREGUNTAS.filter((p) => p.cuadernillo.area === clave).length,
+      error: estado.find((e) => e.area === clave)?.error || null,
+    })),
+  });
+});
+
+// Preguntas que ya vio cada estudiante, para no repetírselas cuando vuelve a entrar
+// (el navegador también las guarda; aquí se cubren los cambios de equipo mientras el servidor esté activo)
+const vistasPorEstudiante = new Map<string, Set<string>>();
+
+// Preguntas que comparten el mismo texto («RESPONDA LAS PREGUNTAS 29 A 33…»), en orden
+async function hermanasDe(p: any): Promise<any[]> {
+  try {
+    const c = await contenidoDePregunta(p);
+    const m = /PREGUNTAS?\s+(\d{1,2})(?:\s*(?:A|Y|-)\s*(\d{1,2}))?/i.exec(c?.contexto?.titulo || '');
+    if (!m || !m[2]) return [];
+    const desde = Number(m[1]), hasta = Number(m[2]);
+    if (p.numero < desde || p.numero > hasta) return [];
+    return PREGUNTAS.filter((q) => q.cuadernillo === p.cuadernillo && q.examen === p.examen && q.numero >= desde && q.numero <= hasta).sort((a, b) => a.numero - b.numero);
+  } catch {
+    return [];
+  }
+}
+const claveEstudiante = (n: string) => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120);
+
+app.get('/api/icfes/pregunta', async (req, res) => {
+  try {
+    if (superaLimite('icfes:' + ipDe(req), 200, 4000)) {
+      return res.status(429).json({ error: 'Demasiadas solicitudes seguidas. Espera un momento.' });
+    }
+    const area = String(req.query.area || '');
+    if (!AREAS_ICFES[area]) return res.status(400).json({ error: 'Área no válida.' });
+    const excluir = new Set(String(req.query.excluir || '').split(',').filter(Boolean).slice(0, 400));
+    const alumno = claveEstudiante(String(req.query.estudiante || ''));
+    const vistasAlumno = alumno ? vistasPorEstudiante.get(alumno) : undefined;
+    if (vistasAlumno) for (const id of vistasAlumno) excluir.add(id);
+    let candidatas = PREGUNTAS.filter((p) => p.cuadernillo.area === area && !excluir.has(p.id));
+    let reinicio = false;
+    if (!candidatas.length) {
+      candidatas = PREGUNTAS.filter((p) => p.cuadernillo.area === area);
+      reinicio = true;
+        if (vistasAlumno) for (const q of candidatas) vistasAlumno.delete(q.id);
+    }
+    // Se elige al azar entre las que no ha visto; se salta alguna cuya página no se haya podido ubicar
+    // Si la pregunta anterior pertenece a un texto compartido, sigue la siguiente pregunta de ese mismo texto
+    const anterior = buscarPregunta(String(req.query.despuesDe || ''));
+    if (anterior && anterior.cuadernillo.area === area) {
+      const sig = (await hermanasDe(anterior)).find((q) => q.numero > anterior.numero && !excluir.has(q.id));
+      if (sig) candidatas = [sig, ...candidatas.filter((q) => q !== sig)];
+    }
+    let forzada = !!(anterior && candidatas[0] && candidatas[0] !== undefined && (await hermanasDe(anterior)).includes(candidatas[0]));
+    for (let intento = 0; intento < 8 && candidatas.length; intento++) {
+      let p = forzada ? candidatas.shift()! : candidatas.splice(Math.floor(Math.random() * candidatas.length), 1)[0];
+        forzada = false;
+        // Si cae en un texto compartido, se empieza por la primera pregunta de ese texto que no haya visto
+        const hermanasP = await hermanasDe(p);
+        const primera = hermanasP.find((q) => !excluir.has(q.id));
+        if (primera) p = primera;
+      const u = await paginasDePregunta(p);
+      if (!u.ubicada || !u.paginas.length) continue;
+        if (alumno) {
+          const s = vistasPorEstudiante.get(alumno) || new Set<string>();
+          s.add(p.id);
+          vistasPorEstudiante.set(alumno, s);
+          if (vistasPorEstudiante.size > 3000) vistasPorEstudiante.delete(vistasPorEstudiante.keys().next().value as string);
+        }
+      return res.json({
+        id: p.id,
+        area,
+        areaNombre: AREAS_ICFES[area].nombre,
+        cuadernilloId: p.cuadernillo.id,
+        cuadernillo: p.cuadernillo.titulo,
+        examen: p.cuadernillo.examenes[p.examen]?.nombre || '',
+        numero: p.numero,
+        opciones: p.opciones,
+        paginas: u.paginas,
+        principal: u.principal,
+        y: u.y,
+        totalPaginas: u.total,
+        reinicio,
+        contenido: await contenidoDePregunta(p).catch(() => null),
+        grupoPos: hermanasP.length ? hermanasP.findIndex((q) => q.id === p.id) + 1 : undefined,
+        grupoTotal: hermanasP.length || undefined,
+        limpiar: reinicio ? PREGUNTAS.filter((q) => q.cuadernillo.area === area).map((q) => q.id) : undefined,
+      });
+    }
+    return res.status(503).json({ error: 'No pude ubicar una pregunta en este cuadernillo. Intenta con otra área.' });
+  } catch (e: any) {
+    console.log('[ICFES] Error al preparar la pregunta:', e?.message || e);
+    return res.status(503).json({ error: 'No pude abrir los cuadernillos del ICFES en este momento. Intenta de nuevo en un minuto o avísale al docente.' });
+  }
+});
+
+app.get('/api/icfes/pagina/:cuadernillo/:indice', async (req, res) => {
+  try {
+    if (superaLimite('icfes-pag:' + ipDe(req), 300, 6000)) return res.status(429).end();
+    const c = CUADERNILLOS.find((x) => x.id === req.params.cuadernillo);
+    const indice = Number(req.params.indice);
+    if (!c || !Number.isInteger(indice)) return res.status(404).end();
+    const pdf = await pdfDePagina(c, indice);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.end(Buffer.from(pdf));
+  } catch (e: any) {
+    console.log('[ICFES] Error al entregar la página:', e?.message || e);
+    return res.status(503).end();
+  }
+});
+
+// Estado del banco (para el docente): qué cuadernillos cargaron y cuántas preguntas se ubicaron
+// Revisa ya mismo la carpeta de Drive (el docente lo abre después de subir un cuadernillo): /api/icfes/actualizar
+let ultimaActualizacionManual = 0;
+app.get('/api/icfes/actualizar', async (_req, res) => {
+  if (Date.now() - ultimaActualizacionManual < 20_000) return res.json({ aviso: 'Ya se está actualizando; espera unos segundos.', ...estadoSincronizacion() });
+  ultimaActualizacionManual = Date.now();
+  const r = await sincronizarCarpeta();
+  return res.json({ ...r, areas: Object.keys(AREAS_ICFES).map((a) => ({ area: a, preguntas: PREGUNTAS.filter((p) => p.cuadernillo.area === a).length })) });
+});
+
+// Contenido extraído de una pregunta (revisión del docente; no incluye la clave): /api/icfes/contenido/lc2018-14
+app.get('/api/icfes/contenido/:id', async (req, res) => {
+  const p = buscarPregunta(req.params.id);
+  if (!p) return res.status(404).json({ error: 'No existe esa pregunta.' });
+  try {
+    const c = await contenidoDePregunta(p);
+    return res.json({ id: p.id, contenido: c, texto: c ? contenidoComoTexto(c) : null });
+  } catch (e: any) {
+    return res.status(503).json({ error: e?.message || 'No disponible' });
+  }
+});
+
+app.get('/api/icfes/estado', (req, res) => {
+  const diag = String(req.query.diag || '');
+  res.json({ cuadernillos: estadoBanco(), sincronizacion: estadoSincronizacion(), ...(diag ? { ubicaciones: diagnostico(diag) } : {}) });
 });
 
 // Endpoint to fetch public parameters and modes configuration

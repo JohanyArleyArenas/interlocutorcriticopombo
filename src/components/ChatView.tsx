@@ -30,9 +30,25 @@ import {
   Cpu,
   Upload,
   Flag,
-  Download
+  Download,
+  Sigma,
+  GraduationCap
 } from 'lucide-react';
+import { Grafica } from './Grafica.tsx';
+import { SelectorArea, TarjetaPregunta, PreguntaIcfesMeta, EstadoPreguntaIcfes } from './EntrenadorIcfes.tsx';
 import { AGENTE, ModoConfig } from '../parametros.ts';
+
+// Bloques ```grafica: la IA describe la gráfica en JSON y aquí se dibuja (ver Grafica.tsx)
+const renderPre = ({ node, children, ...props }: any) => {
+  const hijo: any = node?.children?.[0];
+  const clases = hijo?.properties?.className;
+  const lista: string[] = Array.isArray(clases) ? clases.map(String) : typeof clases === 'string' ? clases.split(' ') : [];
+  if (lista.includes('language-grafica')) {
+    const texto = (hijo?.children || []).map((t: any) => t?.value || '').join('');
+    return <Grafica fuente={texto} />;
+  }
+  return <pre {...props}>{children}</pre>;
+};
 
 // Presentación de cada modo en la tarjeta de bienvenida del chat
 const ICONOS_MODO: Record<string, React.ElementType> = {
@@ -42,6 +58,8 @@ const ICONOS_MODO: Record<string, React.ElementType> = {
   verificar: CheckCircle2,
   auditar: Cpu,
   escrito: FileText,
+  tutor: Sigma,
+  icfes: GraduationCap,
 };
 
 const PASOS_MODO: Record<string, string[]> = {
@@ -51,6 +69,8 @@ const PASOS_MODO: Record<string, string[]> = {
   verificar: ['Pega la afirmación y dónde la viste', 'La contrastamos con evidencia', 'Recibes un veredicto con sus razones'],
   auditar: ['Pega la pregunta y la respuesta de la otra IA', 'Revisamos errores, vacíos y sesgos', 'Decides qué conservar y qué no'],
   escrito: ['Sube tu archivo o pega tu texto', 'Reviso por rondas: estructura, párrafos, oraciones y ortografía', 'Corriges y me envías cada nueva versión'],
+  tutor: ['Escribe o sube una foto de tu ejercicio', 'Entiendes el concepto y das cada paso tú', 'Compruebas tu resultado y practicas uno parecido'],
+  icfes: ['Elige un área y lee la pregunta real', 'Marca tu respuesta', 'Recibe la explicación y un truco para la próxima'],
 };
 
 const EJEMPLOS_MODO: Record<string, string[]> = {
@@ -58,10 +78,11 @@ const EJEMPLOS_MODO: Record<string, string[]> = {
   explorar: ['¿Las redes sociales afectan la concentración de los jóvenes?'],
   argumento: ['Tesis: el uniforme escolar debería ser opcional, porque…'],
   verificar: ['«Tomar agua fría después de comer es peligroso». Lo vi en WhatsApp.'],
+  tutor: ['No entiendo cómo despejar x en 3x + 5 = 20', 'Un carro pasa de 0 a 20 m/s en 4 s, ¿cómo hallo la aceleración?'],
 };
 
 // Modos que muestran el botón «Terminar» (cierre con reflexión)
-const MODOS_CON_CIERRE = ['socratico', 'argumento'];
+const MODOS_CON_CIERRE = ['socratico', 'argumento', 'tutor'];
 
 export interface ChatArchivo {
   nombre: string;
@@ -77,6 +98,9 @@ export interface ChatMessage {
   text: string;
   archivo?: ChatArchivo;
   fuentes?: Array<{ titulo: string; url: string }>;
+  pregunta?: PreguntaIcfesMeta;
+  selector?: boolean;
+  icfes?: { id: string; accion: string; respuesta?: string };
   timestamp: number;
 }
 
@@ -122,6 +146,32 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+// ===== Entrenador Saber 11 =====
+const esIcfes = modeKey === 'icfes';
+const [estadosIcfes, setEstadosIcfes] = useState<Record<string, EstadoPreguntaIcfes>>({});
+const [marcador, setMarcador] = useState<Record<string, { aciertos: number; intentos: number }>>({});
+const [cargandoPregunta, setCargandoPregunta] = useState(false);
+// Preguntas ya vistas por este estudiante (se guardan en el navegador para no repetirlas al volver)
+  const claveVistas = `icfes-vistas:${(estudiante || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()}`;
+  const vistasRef = useRef<string[]>(
+    (() => {
+      try {
+        const v = JSON.parse(localStorage.getItem(claveVistas) || '[]');
+        return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(-600) : [];
+      } catch {
+        return [];
+      }
+    })()
+  );
+  const guardarVistas = () => {
+    try {
+      localStorage.setItem(claveVistas, JSON.stringify(vistasRef.current.slice(-600)));
+    } catch {}
+  };
+const ultimaAreaRef = useRef('');
+const ultimoMsgPregunta = [...messages].reverse().find((m) => !!m.pregunta);
+const preguntaActiva = ultimoMsgPregunta?.pregunta;
+
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -130,6 +180,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
   const cacheIdeasRef = useRef<Record<string, string[]>>({});
   const ideasPara = (clave: string): string[] => {
     const base = EJEMPLOS_MODO[clave] || [];
+if (clave === 'tutor') return base;
     if (base.length === 0) return base;
     const k = clave + '#' + rondaIdeas;
     if (!cacheIdeasRef.current[k]) {
@@ -411,13 +462,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     }
   };
 
-  const handleSendMessage = async () => {
-    const trimmed = inputText.trim();
-    if ((!trimmed && !attachedFile) || isLoading || isProcessingFile || enviandoRef.current) return;
+  const handleSendMessage = async (forzadoArg?: any) => {
+const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; reintento?: boolean } | undefined =
+  forzadoArg && typeof forzadoArg.texto === 'string' ? forzadoArg : undefined;
+    const trimmed = (f ? f.texto : inputText).trim();
+    if ((!trimmed && !attachedFile && !f?.archivo) || isLoading || isProcessingFile || enviandoRef.current) return;
     enviandoRef.current = true;
 
-    let userArchivo: ChatArchivo | undefined = undefined;
-    if (attachedFile) {
+    let userArchivo: ChatArchivo | undefined = f?.archivo;
+    if (attachedFile && !f) {
       userArchivo = {
         nombre: attachedFile.nombre,
         mimeType: attachedFile.mimeType,
@@ -432,13 +485,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
       role: 'user',
       text: trimmed,
       archivo: userArchivo,
+      icfes: f ? f.icfes : esIcfes && preguntaActiva ? { id: preguntaActiva.id, accion: 'conversar' } : undefined,
       timestamp: Date.now(),
     };
 
-    const nextMessages = [...messages, userMessage];
+    const nextMessages = [...(f?.reintento ? messages.slice(0, -1) : messages), userMessage];
     setMessages(nextMessages);
-    setInputText('');
-    setAttachedFile(null);
+    if (!f) setInputText('');
+    if (!f) setAttachedFile(null);
     setErrorMessage(null);
     // En móvil se cierra el teclado al enviar para poder leer la respuesta
     if (esMovil()) textareaRef.current?.blur();
@@ -449,10 +503,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     }
 
     try {
-      const payloadMessages = nextMessages.map((msg) => ({
+      // En el entrenador solo se envía la conversación de la pregunta en curso (desde su tarjeta)
+const payloadMessages = (esIcfes ? nextMessages.slice(Math.max(0, nextMessages.map((mm) => !!mm.pregunta).lastIndexOf(true))) : nextMessages)
+.filter((msg) => !msg.selector)
+.map((msg) => ({
         role: msg.role,
         text: msg.text,
         archivo: msg.archivo,
+      icfes: msg.icfes,
       }));
 
       const res = await fetch('/api/chat', {
@@ -466,6 +524,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
           estudiante: estudiante || '',
           sesion: sesionRef.current,
           stream: true,
+icfes: userMessage.icfes,
         }),
       });
 
@@ -523,6 +582,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
             } else if (evento.t === 'reinicio') {
               acumulado = '';
             } else if (evento.t === 'fin') {
+if (evento.icfes) aplicarResultadoIcfes(evento.icfes);
               acumulado = evento.reply || acumulado;
               pintar(acumulado, Array.isArray(evento.fuentes) ? evento.fuentes : []);
               terminado = true;
@@ -565,7 +625,101 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  
+// ===== Entrenador Saber 11: pedir preguntas, responder, pistas y marcador =====
+const llevarAPregunta = (idMensaje: string) => {
+  window.setTimeout(() => {
+    const contenedor = getContenedor();
+    const el = document.querySelector<HTMLElement>(`[data-mensaje="${idMensaje}"]`);
+    if (!contenedor || !el) return;
+    pegadoAlFondoRef.current = false;
+    const top = el.getBoundingClientRect().top - contenedor.getBoundingClientRect().top + contenedor.scrollTop - 12;
+    contenedor.scrollTo({ top, behavior: 'auto' });
+  }, 120);
+};
+
+const pedirPregunta = async (area: string) => {
+  if (cargandoPregunta || isLoading) return;
+  ultimaAreaRef.current = area;
+  setCargandoPregunta(true);
+  setErrorMessage(null);
+  try {
+    const excluir = vistasRef.current.slice(-400).join(',');
+    const r = await fetch(`/api/icfes/pregunta?area=${encodeURIComponent(area)}&excluir=${encodeURIComponent(excluir)}&estudiante=${encodeURIComponent(estudiante || '')}&despuesDe=${encodeURIComponent(preguntaActiva && preguntaActiva.area === area ? preguntaActiva.id : '')}`);
+    const d: any = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'No se pudo traer la pregunta. Intenta de nuevo.');
+    const p = d as PreguntaIcfesMeta;
+      p.orden = messages.filter((m: any) => !!m.pregunta).length + 1;
+    if (p.reinicio) {
+        const fuera = new Set<string>((p as any).limpiar || []);
+        vistasRef.current = vistasRef.current.filter((id) => !fuera.has(id) && !id.startsWith(p.cuadernilloId + '-'));
+      }
+    vistasRef.current.push(p.id);
+      guardarVistas();
+    const idMensaje = `pregunta-${p.id}-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: idMensaje,
+        role: 'model',
+        text: `Te propuse la pregunta ${p.orden ?? p.numero} de ${p.areaNombre}, tomada del ${p.cuadernillo}.`,
+        pregunta: p,
+        timestamp: Date.now(),
+      },
+    ]);
+    llevarAPregunta(idMensaje);
+  } catch (e: any) {
+    setErrorMessage(e?.message || 'No se pudo traer la pregunta. Intenta de nuevo.');
+  } finally {
+    setCargandoPregunta(false);
+  }
+};
+
+const mostrarSelectorAreas = () => {
+  const idMensaje = `selector-${Date.now()}`;
+  setMessages((prev) => [...prev, { id: idMensaje, role: 'model', text: '', selector: true, timestamp: Date.now() }]);
+  llevarAPregunta(idMensaje);
+};
+
+const responderIcfes = (p: PreguntaIcfesMeta, letra: string, justificacion: string) => {
+  setEstadosIcfes((prev) => ({ ...prev, [p.id]: { ...prev[p.id], respuesta: letra } }));
+  handleSendMessage({
+    texto: `Mi respuesta: ${letra}.` + (justificacion ? `\nMi razonamiento: ${justificacion}` : ''),
+    icfes: { id: p.id, accion: 'responder', respuesta: letra },
+  });
+};
+
+const pistaIcfes = (p: PreguntaIcfesMeta) => {
+  const usadas = estadosIcfes[p.id]?.pistas || 0;
+  setEstadosIcfes((prev) => ({ ...prev, [p.id]: { ...prev[p.id], pistas: usadas + 1 } }));
+  handleSendMessage({
+    texto: usadas ? 'Necesito otra pista, un poco más concreta (sin la respuesta).' : '¿Cómo abordo esta pregunta? Dame una pista sin decirme la respuesta.',
+    icfes: { id: p.id, accion: 'pista' },
+  });
+};
+
+const aplicarResultadoIcfes = (r: { id: string; clave: string; correcta: boolean; area: string }) => {
+  if (!r || !r.id) return;
+  setEstadosIcfes((prev) => ({ ...prev, [r.id]: { ...prev[r.id], clave: r.clave, correcta: !!r.correcta } }));
+  setMarcador((prev) => {
+    const a = prev[r.area] || { aciertos: 0, intentos: 0 };
+    return { ...prev, [r.area]: { aciertos: a.aciertos + (r.correcta ? 1 : 0), intentos: a.intentos + 1 } };
+  });
+};
+
+// Reintentar: vuelve a enviar el último mensaje del estudiante (o vuelve a pedir la pregunta)
+const reintentar = () => {
+  const ultimo = messages[messages.length - 1];
+  if (ultimo?.role === 'user') {
+    handleSendMessage({ texto: ultimo.text, archivo: ultimo.archivo, icfes: ultimo.icfes, reintento: true });
+  } else if (esIcfes && ultimaAreaRef.current) {
+    pedirPregunta(ultimaAreaRef.current);
+  } else {
+    handleSendMessage();
+  }
+};
+
+const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -815,6 +969,34 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
         <div ref={listRef} className="max-w-[720px] mx-auto space-y-6">
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
+// Entrenador Saber 11: tarjeta de la pregunta (página real del cuadernillo + opciones)
+if (msg.pregunta) {
+  const p = msg.pregunta;
+  return (
+    <div key={msg.id} data-mensaje={msg.id}>
+      <TarjetaPregunta
+        pregunta={p}
+        estado={estadosIcfes[p.id] || {}}
+        activa={ultimoMsgPregunta?.id === msg.id}
+        ocupado={isLoading || cargandoPregunta}
+        marcadorArea={marcador[p.area]}
+        onResponder={(letra, justificacion) => responderIcfes(p, letra, justificacion)}
+        onPista={() => pistaIcfes(p)}
+        onSiguiente={() => pedirPregunta(p.area)}
+        onCambiarArea={mostrarSelectorAreas}
+      />
+    </div>
+  );
+}
+if (msg.selector) {
+  return (
+    <div key={msg.id} data-mensaje={msg.id} className="message-appear rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-5 sm:p-6">
+      <p className="text-[17px] font-semibold text-[var(--color-texto)]">¿Qué área quieres practicar ahora?</p>
+      <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} />
+    </div>
+  );
+}
+
 
             if (isUser) {
               return (
@@ -911,7 +1093,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{prepararMatematicas(msg.text)}</ReactMarkdown>
                     </div>
 
-                    {sinMensajes && (ejemplos.length > 0 || modo.adjuntos) && (
+                    {esIcfes && (
+<SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} areaActual={preguntaActiva?.area} />
+)}
+{sinMensajes && (ejemplos.length > 0 || modo.adjuntos) && (
                       <div className="flex flex-wrap gap-2 mt-3">
                         {ejemplos.map((ej) => (
                           <button
@@ -941,7 +1126,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                             onClick={() => fileInputRef.current?.click()}
                             className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 min-h-[44px] rounded-2xl bg-[var(--color-acento)] text-white hover:opacity-90 transition-opacity"
                           >
-                            <Upload className="w-4 h-4" aria-hidden="true" /> Subir mi escrito
+                            <Upload className="w-4 h-4" aria-hidden="true" /> {modeKey === 'tutor' ? 'Subir foto del ejercicio' : 'Subir mi escrito'}
                           </button>
                         )}
                       </div>
@@ -959,6 +1144,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
                       components={{
+                        pre: renderPre,
                         a: ({ node, ...props }) => (
                           <a
                             {...props}
@@ -1039,7 +1225,21 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
             </div>
           )}
 
-          {/* Tarjeta discreta de error con botón Reintentar */}
+          {/* Entrenador Saber 11: buscando pregunta / seguir después de la retroalimentación */}
+{esIcfes && cargandoPregunta && (
+<div className="py-1 text-[15px] text-[var(--color-secundario)] message-appear">Buscando una pregunta en los cuadernillos del ICFES…</div>
+)}
+{esIcfes && preguntaActiva && estadosIcfes[preguntaActiva.id]?.correcta !== undefined && !isLoading && !cargandoPregunta && messages[messages.length - 1]?.role === 'model' && !messages[messages.length - 1]?.pregunta && !messages[messages.length - 1]?.selector && (
+<div className="flex flex-col sm:flex-row gap-2.5 message-appear">
+<button type="button" onClick={() => pedirPregunta(preguntaActiva.area)} className="flex-1 h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity">
+Siguiente pregunta de {preguntaActiva.areaNombre} →
+</button>
+<button type="button" onClick={mostrarSelectorAreas} className="h-[46px] px-4 rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors">
+Cambiar de área
+</button>
+</div>
+)}
+{/* Tarjeta discreta de error con botón Reintentar */}
           {errorMessage && (
             <div className="p-3.5 bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-2xl text-[14px] text-[var(--color-texto)] flex items-start justify-between gap-3 shadow-xs">
               <div className="flex items-start gap-2.5">
@@ -1047,7 +1247,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
                 <p className="text-[var(--color-secundario)]">{errorMessage}</p>
               </div>
               <button
-                onClick={handleSendMessage}
+                onClick={reintentar}
                 type="button"
                 className="px-3 py-1 rounded-lg bg-[var(--color-fondo)] text-[var(--color-texto)] font-medium text-[13px] hover:bg-[var(--color-separador)]/50 transition-colors shrink-0"
               >
@@ -1132,8 +1332,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={isLoading}
-              placeholder="Escribe aquí…"
+              disabled={isLoading || (esIcfes && !preguntaActiva)}
+              placeholder={esIcfes ? (preguntaActiva ? 'Pregúntame lo que no te quedó claro…' : 'Elige un área para empezar') : 'Escribe aquí…'}
               className="flex-1 bg-transparent py-2 text-[16px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)] resize-none focus:outline-none max-h-[144px] leading-snug"
             />
 

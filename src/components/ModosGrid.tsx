@@ -7,7 +7,9 @@ import {
   Cpu, 
   FileText, 
   Globe, 
-  Paperclip 
+  Paperclip,
+  Sigma,
+  GraduationCap
 } from 'lucide-react';
 import { AGENTE, ModoConfig } from '../parametros.ts';
 
@@ -23,9 +25,11 @@ export const ModosGrid: React.FC<ModosGridProps> = ({ onSelectModo }) => {
     verificar: CheckCircle2,
     auditar: Cpu,
     escrito: FileText,
+    tutor: Sigma,
+    icfes: GraduationCap,
   };
 
-  const modeKeys = ['socratico', 'explorar', 'argumento', 'verificar', 'auditar', 'escrito'];
+  const modeKeys = ['socratico', 'tutor', 'icfes', 'explorar', 'argumento', 'verificar', 'auditar', 'escrito'];
 
   // Las tarjetas aparecen con un movimiento suave a medida que entran en pantalla al bajar
   const gridRef = useRef<HTMLDivElement | null>(null);
