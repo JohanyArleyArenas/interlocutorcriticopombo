@@ -95,7 +95,24 @@ export function SelectorArea({
 }
 
 // Bloques de texto y recortes, en el orden del cuadernillo
-function Bloques({ bloques, cuadernilloId, etiqueta, enunciado }: { bloques: BloqueIcfes[]; cuadernilloId: string; etiqueta: string; enunciado?: boolean }) {
+// Resalta el espacio en blanco de esta pregunta en los textos para completar: «(9)_____»
+function resaltarEspacio(texto: string, numero?: number | null) {
+  if (!numero) return texto;
+  const re = new RegExp('(\\(\\s*' + numero + '\\s*\\)\\s*_+)');
+  const partes = texto.split(re);
+  if (partes.length === 1) return texto;
+  return partes.map((p, i) =>
+    i % 2 === 1 ? (
+      <mark key={i} className="px-1 rounded bg-[#FFE08A] text-[#3D2E00] font-semibold">
+        {p}
+      </mark>
+    ) : (
+      p
+    )
+  );
+}
+
+function Bloques({ bloques, cuadernilloId, etiqueta, enunciado, resaltar }: { bloques: BloqueIcfes[]; cuadernilloId: string; etiqueta: string; enunciado?: boolean; resaltar?: number | null }) {
   return (
     <div className="flex flex-col gap-2.5">
       {bloques.map((b, i) =>
@@ -108,7 +125,7 @@ function Bloques({ bloques, cuadernilloId, etiqueta, enunciado }: { bloques: Blo
                 : `text-[16px] leading-relaxed text-[var(--color-texto)]${enunciado ? ' font-medium' : ''}`
             }`}
           >
-            {b.texto}
+            {resaltarEspacio(b.texto, resaltar)}
           </p>
         ) : (
           <RecortePdf key={i} url={`/api/icfes/pagina/${cuadernilloId}/${b.pagina}`} rect={b.rect} etiqueta={etiqueta} />
@@ -152,6 +169,11 @@ export function TarjetaPregunta({
   const titulo = `Pregunta ${pregunta.numero} · ${pregunta.areaNombre}`;
   const pistasUsadas = estado.pistas || 0;
   const contenido = pregunta.contenido || null;
+  // Textos para completar (inglés): el número del espacio en el texto es el de la pregunta en el cuadernillo
+  // Textos con espacios numerados (inglés): «(9)_____» lleva el mismo número de la pregunta
+  const textoCtx = [(contenido?.contexto as any)?.titulo || '', ...(contenido?.contexto?.bloques || []).map((b) => (b.tipo === 'texto' ? b.texto : ''))].join(' ');
+  const sinEnunciado = !(contenido?.enunciado || []).some((b) => b.tipo === 'texto' && b.texto.trim());
+  const espacio = contenido?.contexto && (new RegExp('\\(\\s*' + pregunta.numero + '\\s*\\)\\s*_').test(textoCtx) || (sinEnunciado && /cada espacio/i.test(textoCtx))) ? pregunta.numero : null;
   const puedeElegir = !respondida && activa && !ocupado;
 
   // Mientras se verifica la respuesta no se juzga: solo se marca la letra elegida
@@ -217,6 +239,7 @@ export function TarjetaPregunta({
             <p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--color-acento)]">{pregunta.areaNombre}</p>
             <h3 className="text-[19px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
               Pregunta {pregunta.orden ?? pregunta.numero}
+              {espacio ? <span className="font-normal text-[var(--color-secundario)]"> · espacio ({espacio})</span> : null}
               {pregunta.examen && !pregunta.orden ? <span className="font-normal text-[var(--color-secundario)]"> · {pregunta.examen}</span> : null}
             </h3>
             <p className="text-[13px] text-[var(--color-secundario)] leading-snug mt-0.5">{pregunta.cuadernillo}</p>
@@ -248,8 +271,14 @@ export function TarjetaPregunta({
                     </button>
                   )}
                 </div>
-                {(verLectura || !respondida) && <Bloques bloques={contenido.contexto.bloques} cuadernilloId={pregunta.cuadernilloId} etiqueta={`Texto de la pregunta ${pregunta.numero}`} />}
+                {(verLectura || !respondida) && <Bloques bloques={contenido.contexto.bloques} cuadernilloId={pregunta.cuadernilloId} etiqueta={`Texto de la pregunta ${pregunta.numero}`} resaltar={espacio} />}
               </section>
+            )}
+
+            {espacio && contenido.enunciado.length === 0 && (
+              <p className="text-[16px] leading-relaxed font-medium text-[var(--color-texto)]">
+                Elige la palabra que va en el espacio <span className="px-1 rounded bg-[#FFE08A] text-[#3D2E00] font-semibold">({espacio})</span> del texto.
+              </p>
             )}
 
             {contenido.enunciado.length > 0 && (

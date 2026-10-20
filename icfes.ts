@@ -452,7 +452,27 @@ function agruparLineas(items: any[]) {
     const abajo = filas.find((G) => G !== F && G.y - F.y > 0.5 && G.y - F.y <= 5 && Math.max(...G.items.map((it: any) => it.t)) > tMax * 1.25 &&
       F.items.every((it: any) => G.items.some((g: any) => it.x >= g.x - 30 && it.x <= g.x + g.w + 30)));
     if (abajo) { abajo.items.push(...F.items); F.items = []; }
+    else {
+      // Subíndices (H₂O, MgSO₄): fila de letra pequeña justo debajo de una línea normal
+      const arriba = filas.find((G) => G !== F && G.items.length && F.y - G.y > 0.5 && F.y - G.y <= 5 && Math.max(...G.items.map((it: any) => it.t)) > tMax * 1.25 &&
+        F.items.every((it: any) => G.items.some((g: any) => it.x >= g.x - 30 && it.x <= g.x + g.w + 30)));
+      if (arriba) { arriba.items.push(...F.items); F.items = []; }
+    }
   }
+  // Filas casi a la misma altura que no se tocan horizontalmente (opciones en fila, «C. hardly D. just»): son una sola línea
+  const vivas = filas.filter((F) => F.items.length);
+  for (let i = 0; i < vivas.length; i++)
+    for (let j = i + 1; j < vivas.length; j++) {
+      const A = vivas[i], B = vivas[j];
+      if (!A.items.length || !B.items.length || Math.abs(A.y - B.y) > 3.2) continue;
+      const tA = Math.max(...A.items.map((it: any) => it.t)), tB = Math.max(...B.items.map((it: any) => it.t));
+      if (Math.abs(tA - tB) > 1.5) continue;
+      const ax0 = Math.min(...A.items.map((it: any) => it.x)), ax1 = Math.max(...A.items.map((it: any) => it.x + it.w));
+      const bx0 = Math.min(...B.items.map((it: any) => it.x)), bx1 = Math.max(...B.items.map((it: any) => it.x + it.w));
+      if (ax0 < bx1 + 2 && bx0 < ax1 + 2) continue; // se solapan: están apiladas (fracciones)
+      A.items.push(...B.items);
+      B.items = [];
+    }
   const lineas: any[] = [];
   for (const F of filas.filter((F) => F.items.length)) {
     F.items.sort((a: any, b: any) => a.x - b.x);
@@ -538,9 +558,11 @@ function renglonesDePagina(pg: any, indice: number) {
     .sort((a: any, b: any) => a.y - b.y || a.x - b.x);
   const res: any[] = agruparLineas(items).map((L: any) => {
     // Fórmulas: subíndices/superíndices, rayas de fracción o radicales en la línea
-    const indices = L.items.some((it: any) => it.t < L.t * 0.8 && Math.abs(it.y - L.y) > 1.2 && !/^(\d{1,2}|th|st|nd|rd|er|o|a|°)$/i.test(it.s.trim()));
+    const indices = L.items.some((it: any) => it.t < L.t * 0.8 && Math.abs(it.y - L.y) > 1.2 && !/^(\d{1,2}[,.;]?|th|st|nd|rd|er|o|a|°)$/i.test(it.s.trim()));
     const fraccion = barras.some((b: any) => b.x0 < L.x1 && b.x1 > L.x0 && b.y0 > L.yTop - 9 && b.y0 < L.yBot + 9);
-    const suelta = L.items.length >= 3 && L.items.filter((it: any) => it.s.trim().length <= 2).length / L.items.length > 0.6;
+    // Letras o números sueltos (x + y = z). No cuentan la letra de la opción («C.») ni un punto final suelto
+    const utiles = L.items.filter((it: any) => !/^([A-H]\.|[.,;:()])$/.test(it.s.trim()) && !(it.t < L.t * 0.8 && /^[\d+\-−]{1,3}[,.;]?$/.test(it.s.trim())));
+    const suelta = utiles.length >= 4 && utiles.filter((it: any) => it.s.trim().length <= 2).length / utiles.length > 0.6;
     const mate = indices || fraccion || suelta || L.items.some((it: any) => /[√∑∫]/.test(it.s));
     return { tipo: 'texto', pagina: indice, y: L.y, yTop: L.yTop, yBot: L.yBot, x0: L.x0, x1: L.x1, t: L.t, items: L.items, mate };
   });
@@ -569,10 +591,11 @@ function textoDeLinea(L: any) {
   for (const it of L.items) {
     const str = it.s;
     // Números pequeños: subíndices (CO₂, MgSO₄) o superíndices (m², notas al pie¹)
-    if (it.t < L.t * 0.8 && /^[\d+\-−]{1,3}$/.test(str.trim())) {
+    const pequeno = it.t < L.t * 0.8 ? /^([\d+\-−]{1,3})([,.;]?)$/.exec(str.trim()) : null;
+    if (pequeno) {
       const baja = it.y > yBase + 0.8;
       const mapa = baja ? SUB : SUP;
-      s += str.trim().replace(/\d/g, (d: string) => mapa[+d]).replace(/\+/g, baja ? '₊' : '⁺').replace(/[-−]/g, baja ? '₋' : '⁻');
+      s += pequeno[1].replace(/\d/g, (d: string) => mapa[+d]).replace(/\+/g, baja ? '₊' : '⁺').replace(/[-−]/g, baja ? '₋' : '⁻') + pequeno[2];
       finAnt = it.x + it.w;
       continue;
     }
@@ -736,6 +759,8 @@ export function construirPreguntas(paginas: any[], examenes: Array<{ claves: str
     mp.idxNum = mp.idx;
     let ini = mp.idx;
     const fila = todos[mp.idxNum];
+    // Opciones impresas en la misma línea del número (p. ej. «25.  A. almost  B. only …») que quedaron justo antes de él
+    while (ini - 1 >= 0 && todos[ini - 1].tipo === 'texto' && todos[ini - 1].pagina === fila.pagina && Math.abs(todos[ini - 1].yBot - fila.yBot) <= 3.5 && todos[ini - 1].x0 > fila.x0 && /^[A-H]\.?$|^[A-H]\.\s/.test(todos[ini - 1].items[0].s.trim()) && !marcas.some((x) => x.idx === ini - 1)) ini--;
     while (ini - 1 >= 0 && todos[ini - 1].tipo === 'texto' && todos[ini - 1].mate && todos[ini - 1].x1 - todos[ini - 1].x0 < 120 && todos[ini - 1].pagina === fila.pagina && fila.yTop - todos[ini - 1].yBot < 14 && !marcas.some((x) => x.idx === ini - 1)) ini--;
     mp.idx = ini;
   }
@@ -801,6 +826,19 @@ export function construirPreguntas(paginas: any[], examenes: Array<{ claves: str
     const sep = separarOpciones(reng, letras);
     // Opciones con fórmulas: se muestran recortadas completas (texto partido = riesgo de error)
     const hayMate = sep.opciones.some((o) => o.renglones.some((r: any) => r.tipo === 'texto' && r.mate));
+    // Opciones cortas en cuadrícula («A. its   C. your» / «B. his»): se leen por sus letras
+    if (!sep.ok) {
+      const g = opcionesEnCuadricula(reng, letras);
+      if (g) {
+        resultado.set(`${mp.examen}-${mp.num}`, {
+          contexto,
+          enunciado: tieneColumnas(g.enunciado) ? recortes(g.enunciado) : parrafos(g.enunciado),
+          opciones: g.opciones.map((o) => ({ letra: o.letra, bloques: [{ tipo: 'texto' as const, texto: o.texto }] })),
+          recorteOpciones: null,
+        });
+        continue;
+      }
+    }
     if (!sep.ok && tieneColumnas(reng)) {
       resultado.set(`${mp.examen}-${mp.num}`, { contexto, enunciado: recortes(reng), opciones: null, recorteOpciones: null });
       continue;
@@ -1113,7 +1151,7 @@ export const estadoSincronizacion = () => estadoSync;
 // Guarda el PDF y su análisis en la carpeta temporal del servidor. Así, al reiniciarse, no hay que
 // volver a descargar ni a analizar cada cuadernillo (eso era lo que hacía lento el arranque).
 // Si se cambia la forma de extraer las preguntas, sube VERSION_CACHE para que se rehaga el análisis.
-const VERSION_CACHE = 'ext-v8';
+const VERSION_CACHE = 'ext-v12';
 const HORAS_CACHE = 24;
 async function rutaCacheIcfes(c: Cuadernillo) {
   const os = await import('os');
@@ -1149,4 +1187,34 @@ async function guardarCacheIcfes(c: Cuadernillo, bytes: Uint8Array, total: numbe
   } catch (e: any) {
     console.log('[ICFES] No se pudo guardar la copia local:', e?.message || e);
   }
+}
+
+
+// Opciones de una sola línea repartidas en filas y columnas: cada letra con el texto que tiene a su derecha
+function opcionesEnCuadricula(renglones: any[], letras: string[]) {
+  const esMarca = (s: string) => /^([A-H])\.(\s|$)/.test(s.trim());
+  const iPrimera = renglones.findIndex((r) => r.tipo === 'texto' && r.items.some((it: any) => esMarca(it.s)));
+  if (iPrimera < 0) return null;
+  const zona = renglones.slice(iPrimera);
+  if (zona.some((r) => r.tipo !== 'texto' || r.mate)) return null;
+  const mapa = new Map<string, any[]>();
+  for (const r of zona) {
+    let actual: string | null = null;
+    for (const it of [...r.items].sort((a: any, b: any) => a.x - b.x)) {
+      const m = /^([A-H])\.\s*(.*)$/.exec(it.s.trim());
+      if (m && letras.includes(m[1]) && !mapa.has(m[1])) {
+        actual = m[1];
+        mapa.set(actual, m[2] ? [{ ...it, s: m[2] }] : []);
+      } else if (actual) mapa.get(actual)!.push(it);
+      else return null; // texto que no pertenece a ninguna letra
+    }
+  }
+  if (mapa.size !== letras.length || [...mapa.values()].some((v) => !v.length)) return null;
+  return {
+    enunciado: renglones.slice(0, iPrimera),
+    opciones: letras.map((l) => {
+      const its = mapa.get(l)!;
+      return { letra: l, texto: textoDeLinea({ items: its, t: Math.max(...its.map((i: any) => i.t)), y: its[0].y }) };
+    }),
+  };
 }

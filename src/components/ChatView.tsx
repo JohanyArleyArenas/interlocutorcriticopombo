@@ -1231,10 +1231,10 @@ if (msg.selector) {
 )}
 {esIcfes && preguntaActiva && estadosIcfes[preguntaActiva.id]?.correcta !== undefined && !isLoading && !cargandoPregunta && messages[messages.length - 1]?.role === 'model' && !messages[messages.length - 1]?.pregunta && !messages[messages.length - 1]?.selector && (
 <div className="flex flex-col sm:flex-row gap-2.5 message-appear">
-<button type="button" onClick={() => pedirPregunta(preguntaActiva.area)} className="flex-1 h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity">
+<button type="button" onClick={() => pedirPregunta(preguntaActiva.area)} className="w-full sm:w-auto sm:flex-1 h-[46px] shrink-0 rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity">
 Siguiente pregunta de {preguntaActiva.areaNombre} →
 </button>
-<button type="button" onClick={mostrarSelectorAreas} className="h-[46px] px-4 rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors">
+<button type="button" onClick={mostrarSelectorAreas} className="w-full sm:w-auto h-[46px] shrink-0 px-4 rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors">
 Cambiar de área
 </button>
 </div>
