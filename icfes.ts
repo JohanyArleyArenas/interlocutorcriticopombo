@@ -179,6 +179,7 @@ export async function ubicarPreguntas(bytes: Uint8Array, c: Cuadernillo): Promis
   for (let p = 1; p <= total; p++) {
     const pagina = await pdf.getPage(p);
     const vista = pagina.getViewport({ scale: 1 });
+    await new Promise((listo) => setImmediate(listo)); // deja atender a los estudiantes entre página y página
     const contenido = await pagina.getTextContent();
     try {
       leidas.push(await leerPaginaPdf(pagina, pdfjs.OPS));
@@ -271,13 +272,16 @@ export async function cargarCuadernillo(c: Cuadernillo): Promise<PdfCargado> {
   if (error && Date.now() - error.cuando < 60_000) throw new Error(error.mensaje);
   const promesa = (async () => {
     const t0 = Date.now();
-    const bytes = bytesPrevios.get(c.archivo) || (await descargarDeDrive(c.archivo));
+    // Copia local del análisis (sobrevive a los reinicios del servidor): arranque mucho más rápido
+    const enCache = bytesPrevios.has(c.archivo) ? null : await leerCacheIcfes(c);
+    const bytes = bytesPrevios.get(c.archivo) || enCache?.bytes || (await descargarDeDrive(c.archivo));
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     let ubicaciones = new Map<string, Ubicacion>();
     let contenidos = new Map<string, ContenidoPregunta>();
     let total = doc.getPageCount();
     try {
-      const r = await ubicarPreguntas(bytes, c);
+      const r = enCache ? { total: enCache.total, ubicaciones: enCache.ubicaciones, contenidos: enCache.contenidos } : await ubicarPreguntas(bytes, c);
+      if (!enCache) guardarCacheIcfes(c, bytes, r.total, r.ubicaciones, r.contenidos);
       ubicaciones = r.ubicaciones;
       contenidos = r.contenidos;
       if (c.dinamico) for (const p of PREGUNTAS) if (p.cuadernillo === c) { const l = r.contenidos.get(`${p.examen}-${p.numero}`)?.letras; if (l?.length) p.opciones = l; }
@@ -308,7 +312,7 @@ export function precargarCuadernillos() {
   // Revisa la carpeta de Drive al arrancar y cada 15 minutos (cuadernillos nuevos o retirados)
   setTimeout(() => sincronizarCarpeta(), 15000);
   setInterval(() => sincronizarCarpeta(), 15 * 60_000);
-  CUADERNILLOS.forEach((c, i) => setTimeout(() => cargarCuadernillo(c).catch((e) => console.log(`[ICFES] ${c.id}:`, e?.message || e)), 2000 + i * 1500));
+  CUADERNILLOS.forEach((c, i) => setTimeout(() => cargarCuadernillo(c).catch((e) => console.log(`[ICFES] ${c.id}:`, e?.message || e)), 5000 + i * 2500));
 }
 
 export async function paginasDePregunta(p: PreguntaIcfes): Promise<{ paginas: number[]; principal: number; y: number; total: number; ubicada: boolean }> {
@@ -1103,3 +1107,46 @@ export function sincronizarCarpeta() {
 }
 
 export const estadoSincronizacion = () => estadoSync;
+
+
+// ===== Copia local del análisis de cada cuadernillo =====
+// Guarda el PDF y su análisis en la carpeta temporal del servidor. Así, al reiniciarse, no hay que
+// volver a descargar ni a analizar cada cuadernillo (eso era lo que hacía lento el arranque).
+// Si se cambia la forma de extraer las preguntas, sube VERSION_CACHE para que se rehaga el análisis.
+const VERSION_CACHE = 'ext-v8';
+const HORAS_CACHE = 24;
+async function rutaCacheIcfes(c: Cuadernillo) {
+  const os = await import('os');
+  const path = await import('path');
+  return path.join(os.tmpdir(), 'icfes-cache', `${c.archivo}-${VERSION_CACHE}`);
+}
+async function leerCacheIcfes(c: Cuadernillo) {
+  try {
+    const fs = await import('fs/promises');
+    const base = await rutaCacheIcfes(c);
+    const info = await fs.stat(base + '.json');
+    if (Date.now() - info.mtimeMs > HORAS_CACHE * 3_600_000) return null;
+    const [pdf, json] = await Promise.all([fs.readFile(base + '.pdf'), fs.readFile(base + '.json', 'utf8')]);
+    const d = JSON.parse(json);
+    return {
+      bytes: new Uint8Array(pdf),
+      total: Number(d.total),
+      ubicaciones: new Map<string, Ubicacion>(d.ubicaciones),
+      contenidos: new Map<string, ContenidoPregunta>(d.contenidos),
+    };
+  } catch {
+    return null;
+  }
+}
+async function guardarCacheIcfes(c: Cuadernillo, bytes: Uint8Array, total: number, ubicaciones: Map<string, Ubicacion>, contenidos: Map<string, ContenidoPregunta>) {
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const base = await rutaCacheIcfes(c);
+    await fs.mkdir(path.dirname(base), { recursive: true });
+    await fs.writeFile(base + '.pdf', bytes);
+    await fs.writeFile(base + '.json', JSON.stringify({ total, ubicaciones: [...ubicaciones], contenidos: [...contenidos] }));
+  } catch (e: any) {
+    console.log('[ICFES] No se pudo guardar la copia local:', e?.message || e);
+  }
+}

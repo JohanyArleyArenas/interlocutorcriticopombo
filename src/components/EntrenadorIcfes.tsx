@@ -311,7 +311,7 @@ export function TarjetaPregunta({
                 type="button"
                 disabled={!elegida || ocupado}
                 onClick={() => onResponder(elegida, '')}
-                className="flex-1 h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto sm:flex-1 h-[46px] shrink-0 rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {elegida ? `Responder ${elegida}` : 'Elige una opción'}
               </button>
@@ -319,7 +319,7 @@ export function TarjetaPregunta({
                 type="button"
                 disabled={ocupado || pistasUsadas >= 2}
                 onClick={onPista}
-                className="sm:w-auto h-[46px] px-4 rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-40"
+                className="w-full sm:w-auto h-[46px] shrink-0 px-4 rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-40"
               >
                 <Lightbulb className="w-4 h-4" aria-hidden="true" />
                 {pistasUsadas >= 2 ? 'Sin más pistas' : pistasUsadas === 1 ? 'Otra pista' : '¿Cómo la abordo?'}

@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Header } from './components/Header.tsx';
 import { Footer } from './components/Footer.tsx';
 import { ModosGrid } from './components/ModosGrid.tsx';
-import { ChatView } from './components/ChatView.tsx';
+// El chat (con el visor de PDF, fórmulas y gráficas) se descarga aparte: la pantalla inicial abre más rápido
+const cargarChat = () => import('./components/ChatView.tsx');
+const ChatView = React.lazy(() => cargarChat().then((m) => ({ default: m.ChatView })));
 
 // ===== Identificación del estudiante (se pide una vez por pestaña) =====
 const CLAVE_ESTUDIANTE = 'interlocutor-estudiante';
@@ -111,6 +113,12 @@ function IngresoNombre({ onListo }: { onListo: (nombre: string) => void }) {
 }
 
 export default function App() {
+  // Mientras el estudiante escribe su nombre o elige el modo, el chat se descarga en segundo plano
+  useEffect(() => {
+    const t = window.setTimeout(() => cargarChat().catch(() => {}), 1200);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const [selectedModeKey, setSelectedModeKey] = useState<string | null>(null);
   const [estudiante, setEstudiante] = useState<string>(() => leerEstudiante());
 
@@ -169,12 +177,20 @@ export default function App() {
         {!estudiante ? (
           <IngresoNombre onListo={setEstudiante} />
         ) : selectedModeKey ? (
-          <ChatView
-            key={selectedModeKey}
-            modeKey={selectedModeKey}
-            estudiante={estudiante}
-            onBackToModos={() => setSelectedModeKey(null)}
-          />
+          <React.Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center py-16">
+                <span className="w-7 h-7 rounded-full border-[3px] border-[var(--color-separador)] border-t-[var(--color-acento)] animate-spin" aria-label="Cargando" />
+              </div>
+            }
+          >
+            <ChatView
+              key={selectedModeKey}
+              modeKey={selectedModeKey}
+              estudiante={estudiante}
+              onBackToModos={() => setSelectedModeKey(null)}
+            />
+          </React.Suspense>
         ) : (
           <>
             <div className="anim-entrada pt-5 px-4 flex items-center justify-center gap-3 text-[15px] text-[var(--color-secundario)]">

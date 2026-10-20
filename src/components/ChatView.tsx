@@ -12,7 +12,6 @@ const prepararMatematicas = (texto: string) =>
   (texto || '')
     .replace(/\\\[([\s\S]+?)\\\]/g, (_m, f) => '\n$$\n' + f.trim() + '\n$$\n')
     .replace(/\\\(([\s\S]+?)\\\)/g, (_m, f) => '$' + f.trim() + '$');
-import mammoth from 'mammoth';
 import { 
   ChevronLeft, 
   ArrowUp, 
@@ -430,6 +429,7 @@ if (clave === 'tutor') return base;
 
       if (ext === 'docx') {
         const arrayBuffer = await file.arrayBuffer();
+        const mammoth: any = (await import('mammoth')).default ?? (await import('mammoth'));
         const result = await mammoth.extractRawText({ arrayBuffer });
         texto = result.value;
       } else if (ext === 'txt' || ext === 'md') {

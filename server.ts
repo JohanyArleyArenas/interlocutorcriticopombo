@@ -113,6 +113,12 @@ const SEARCH_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 // consultan los modelos Flash disponibles en la cuenta y se usan todos en cascada: cuando uno
 // se queda sin cupo, responde el siguiente.
 let modelosDescubiertos: string[] = [];
+// Tiempos recientes de la IA (para el docente: /api/diagnostico-ia)
+const tiemposIA: any[] = [];
+const registrarTiempo = (t: any) => {
+  tiemposIA.push({ ...t, hora: new Date().toLocaleTimeString('es-CO', { timeZone: 'America/Bogota' }) });
+  if (tiemposIA.length > 40) tiemposIA.shift();
+};
 async function descubrirModelos(): Promise<void> {
   try {
     const encontrados: string[] = [];
@@ -254,6 +260,7 @@ let registroIcfes = '';
 let resultadoIcfes: { id: string; clave: string; correcta: boolean; area: string } | null = null;
 // El tutor y el entrenador razonan un poco más (cálculos, lectura de gráficas y páginas del cuadernillo)
 let razonarMas = modeKey === 'tutor';
+  let rapido = false; // pistas y conversación del entrenador: razonamiento mínimo para responder más rápido
 if (modeKey === 'icfes') {
   const ic = ((req.body as any)?.icfes || {}) as { id?: string; accion?: string; respuesta?: string };
   const pregunta = buscarPregunta(String(ic.id || ''));
@@ -269,11 +276,20 @@ if (modeKey === 'icfes') {
   const respuestaEst = accion === 'responder' ? respuesta : String(respuestaAnterior || '').toUpperCase().slice(0, 1);
   const yaRespondio = accion === 'responder' || pregunta.opciones.includes(respuestaEst);
   const area = AREAS_ICFES[pregunta.cuadernillo.area];
-  razonarMas = true;
+  // Razonamiento más profundo solo al corregir matemáticas y ciencias; lo demás responde más rápido
+    razonarMas = accion === 'responder' && ['matematicas', 'ciencias'].includes(pregunta.cuadernillo.area);
+    rapido = accion !== 'responder';
   let ubic: Awaited<ReturnType<typeof paginasDePregunta>> | null = null;
+    let sinFiguras = false;
   try {
     ubic = await paginasDePregunta(pregunta);
-    for (const idx of ubic.paginas.slice(-3)) {
+      // Solo se adjuntan las páginas que tienen figuras, tablas o fórmulas: el texto ya va transcrito (más rápido)
+      const contAdj = await contenidoDePregunta(pregunta).catch(() => null);
+      sinFiguras = !!contAdj;
+      const paginasRecorte: number[] | null = contAdj
+        ? [...new Set([...(contAdj.contexto?.bloques || []), ...contAdj.enunciado, ...(contAdj.opciones || []).flatMap((o: any) => o.bloques), ...(contAdj.recorteOpciones || [])].filter((b: any) => b.tipo === 'recorte').map((b: any) => b.pagina as number))]
+        : null;
+    for (const idx of paginasRecorte ? paginasRecorte.slice(-3) : ubic.paginas.slice(-3)) {
       const pdf = await pdfDePagina(pregunta.cuadernillo, idx);
       partesIcfes.push({ inlineData: { mimeType: 'application/pdf', data: Buffer.from(pdf).toString('base64') } });
     }
@@ -293,7 +309,9 @@ if (modeKey === 'icfes') {
           ? `Te adjunto ${partesIcfes.length} páginas del cuadernillo: la primera trae el texto o la situación que comparten varias preguntas y la pregunta ${pregunta.numero} está en la última, `
           : `Te adjunto la página del cuadernillo donde está la pregunta ${pregunta.numero}, `) +
         `más o menos al ${Math.round((ubic.y || 0) * 100)} % de la altura de la página. La página puede tener otras preguntas: ocúpate SOLO de la pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''}.`
-      : 'No pude adjuntar la página de la pregunta: dile al estudiante que en este momento no puedes verla y pídele que intente con otra pregunta.';
+      : sinFiguras
+          ? 'La pregunta está transcrita completa más abajo, tal como la ve el estudiante (no tiene figuras, tablas ni fórmulas); no necesitas la página del cuadernillo.'
+          : 'No pude adjuntar la página de la pregunta: dile al estudiante que en este momento no puedes verla y pídele que intente con otra pregunta.';
   contextoIcfes =
     `\n\nPREGUNTA ACTIVA DEL ENTRENADOR: pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''} — ${pregunta.cuadernillo.titulo}. Área: ${area?.nombre}. Opciones de respuesta: ${pregunta.opciones.join(', ')}.\n${ubicTexto}\n${textoPregunta}${area?.competencias || ''}\n` +
     (yaRespondio
@@ -391,7 +409,7 @@ const razonar = esCuantitativo || razonarMas;
       // El razonamiento interno también consume tokens de salida: se deja margen para no cortar respuestas
       maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + (razonar ? 3000 : 1500),
       // El diálogo socrático sin cálculos es conversación breve: piensa lo mínimo para responder más rápido
-      thinkingConfig: { thinkingLevel: (razonar ? 'MEDIUM' : modeKey === 'socratico' ? 'MINIMAL' : 'LOW') as any },
+      thinkingConfig: { thinkingLevel: (razonar ? 'MEDIUM' : modeKey === 'socratico' || rapido ? 'MINIMAL' : 'LOW') as any },
     };
 
     if (modo.busqueda) {
@@ -399,7 +417,9 @@ const razonar = esCuantitativo || razonarMas;
     }
 
     const listaBase = modo.busqueda ? SEARCH_MODELS : CANDIDATE_MODELS;
-    const modelsToTry = modelosDescubiertos.length ? modelosDescubiertos : listaBase;
+    const baseModelos = modelosDescubiertos.length ? modelosDescubiertos : listaBase;
+  // Pistas y conversación del entrenador: primero los modelos ligeros (responden en menos de un segundo)
+  const modelsToTry = rapido ? [...baseModelos.filter((x) => x.includes('-lite')), ...baseModelos.filter((x) => !x.includes('-lite'))] : baseModelos;
 
     let lastError: any = null;
     let replyText: string | null = null;
@@ -433,7 +453,8 @@ const razonar = esCuantitativo || razonarMas;
     const generar = async (model: string, cfg: any): Promise<any> => {
       // Si un modelo tarda demasiado en empezar a responder (saturado o casi sin cupo), se corta y se pasa al siguiente
       const controlador = new AbortController();
-      const limiteMs = quiereStream ? (razonar ? 45_000 : 15_000) : (razonar ? 50_000 : 25_000);
+      // Si un modelo no empieza a responder pronto, se pasa al siguiente (antes se esperaban hasta 15 s)
+      const limiteMs = quiereStream ? (razonar ? 25_000 : rapido ? 6_000 : 10_000) : (razonar ? 40_000 : 20_000);
       const temporizador = setTimeout(() => controlador.abort(), limiteMs);
       const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
       try {
@@ -446,6 +467,7 @@ const razonar = esCuantitativo || razonarMas;
           if (!ultimo) {
             clearTimeout(temporizador);
             console.log(`[Primer texto] ${model} en ${Date.now() - tInicioFlujo} ms`);
+            registrarTiempo({ modo: modeKey, modelo: model, primerTextoMs: Date.now() - tInicioFlujo, razonar, adjuntos: partesIcfes.length });
           }
           ultimo = parte;
           const delta = parte.text || '';
@@ -517,7 +539,8 @@ const razonar = esCuantitativo || razonarMas;
         // Modelo demasiado lento: se aparta 1 minuto y se pasa al siguiente sin esperar
         if (err?.name === 'AbortError' || /abort/i.test(String(err?.message || ''))) {
           console.log(`[Lento] ${model} no empezó a responder a tiempo; se pasa al siguiente`);
-          agotadoHasta.set(claveCupo(model, !!modo.busqueda), Date.now() + 60_000);
+          registrarTiempo({ modo: modeKey, modelo: model, lento: true });
+          agotadoHasta.set(claveCupo(model, !!modo.busqueda), Date.now() + 5 * 60_000); // se aparta 5 minutos
           continue;
         }
         let cupoLargo = false;
@@ -825,6 +848,37 @@ app.get('/api/icfes/contenido/:id', async (req, res) => {
   } catch (e: any) {
     return res.status(503).json({ error: e?.message || 'No disponible' });
   }
+});
+
+// Prueba de velocidad de cada modelo (para el docente): /api/diagnostico-ia/probar
+app.get('/api/diagnostico-ia/probar', async (_req, res) => {
+  const lista = modelosDescubiertos.length ? modelosDescubiertos : CANDIDATE_MODELS;
+  const resultados = await Promise.all(
+    lista.map(async (model) => {
+      const t0 = Date.now();
+      const ctl = new AbortController();
+      const tm = setTimeout(() => ctl.abort(), 30_000);
+      try {
+        const flujo = await ai.models.generateContentStream({
+          model,
+          contents: [{ role: 'user', parts: [{ text: 'Explica en 3 frases qué es una inferencia en un texto.' }] }],
+          config: { maxOutputTokens: 600, thinkingConfig: { thinkingLevel: 'LOW' as any }, abortSignal: ctl.signal } as any,
+        });
+        let primero = 0;
+        for await (const _p of flujo) if (!primero) primero = Date.now() - t0;
+        return { model, primerTextoMs: primero, totalMs: Date.now() - t0 };
+      } catch (e: any) {
+        return { model, error: String(e?.status || '') + ' ' + String(e?.message || e).slice(0, 120), ms: Date.now() - t0 };
+      } finally {
+        clearTimeout(tm);
+      }
+    })
+  );
+  res.json(resultados);
+});
+
+app.get('/api/diagnostico-ia', (_req, res) => {
+  res.json({ cascada: modelosDescubiertos.length ? modelosDescubiertos : CANDIDATE_MODELS, tiempos: tiemposIA });
 });
 
 app.get('/api/icfes/estado', (req, res) => {
