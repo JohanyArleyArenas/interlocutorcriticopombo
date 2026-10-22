@@ -66,7 +66,7 @@ const PASOS_MODO: Record<string, string[]> = {
   explorar: ['Afinamos tu pregunta de investigación', 'Aprendes a buscar fuentes académicas gratuitas', 'Las estudias en NotebookLM y evalúas lo hallado'],
   argumento: ['Escribe tu tesis y tus razones', 'La revisamos por etapas: estructura, falacias, sesgos y objeciones', 'La pules hasta que esté lista para redactar'],
   verificar: ['Pega la afirmación y dónde la viste', 'La contrastamos con evidencia', 'Recibes un veredicto con sus razones'],
-  auditar: ['Pega la pregunta y la respuesta de la otra IA', 'Revisamos errores, vacíos y sesgos', 'Decides qué conservar y qué no'],
+  auditar: ['Pega la pregunta y la respuesta de la otra IA', 'Señalas tú lo sospechoso y lo compruebas en fuentes', 'Comparamos y escribes tu versión corregida'],
   escrito: ['Sube tu archivo o pega tu texto', 'Reviso por rondas: estructura, párrafos, oraciones y ortografía', 'Corriges y me envías cada nueva versión'],
   tutor: ['Escribe o sube una foto de tu ejercicio', 'Entiendes el concepto y das cada paso tú', 'Compruebas tu resultado y practicas uno parecido'],
   icfes: ['Elige un área y lee la pregunta real', 'Marca tu respuesta', 'Recibe la explicación y un truco para la próxima'],
@@ -80,8 +80,8 @@ const EJEMPLOS_MODO: Record<string, string[]> = {
   tutor: ['No entiendo cómo despejar x en 3x + 5 = 20', 'Un carro pasa de 0 a 20 m/s en 4 s, ¿cómo hallo la aceleración?'],
 };
 
-// Modos que muestran el botón «Terminar» (cierre con reflexión)
-const MODOS_CON_CIERRE = ['socratico', 'argumento', 'tutor'];
+// Modos que muestran el botón «Terminar» (cierre con reflexión: todos excepto icfes)
+const MODOS_CON_CIERRE = ['socratico', 'explorar', 'argumento', 'verificar', 'auditar', 'escrito', 'tutor'];
 
 export interface ChatArchivo {
   nombre: string;
@@ -203,13 +203,18 @@ if (clave === 'tutor') return base;
   const [cierreEstado, setCierreEstado] = useState<'editando' | 'enviando' | 'listo'>('editando');
   const [cierreError, setCierreError] = useState('');
   const [aprendi, setAprendi] = useState('');
+  const [sinAyuda, setSinAyuda] = useState('');
   const [dudas, setDudas] = useState('');
   const [confianza, setConfianza] = useState(0);
   const turnosEstudiante = messages.filter((m) => m.role === 'user').length;
 
   const enviarCierre = async () => {
     if (!aprendi.trim()) {
-      setCierreError('Escribe al menos qué aprendiste.');
+      setCierreError('Escribe qué aprendiste tú hoy.');
+      return;
+    }
+    if (!sinAyuda.trim()) {
+      setCierreError('Escribe qué habrías hecho sin ayuda de la IA.');
       return;
     }
     setCierreEstado('enviando');
@@ -222,8 +227,9 @@ if (clave === 'tutor') return base;
           modeKey,
           estudiante: estudiante || '',
           sesion: sesionRef.current,
-          aprendi,
-          dudas,
+          aprendi: aprendi.trim(),
+          sinAyuda: sinAyuda.trim(),
+          dudas: dudas.trim(),
           confianza,
           turnos: turnosEstudiante,
           segundos: Math.round((Date.now() - inicioSesionRef.current) / 1000),
@@ -242,7 +248,7 @@ if (clave === 'tutor') return base;
 
   const descargarConversacion = () => {
     const fecha = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
-    const lineas: string[] = [`Interlocutor Crítico — ${modo.titulo}`, `Estudiante: ${estudiante || ''}`, `Fecha: ${fecha}`, ''];
+    const lineas: string[] = [`Interlocutor Crítico — ${modo.titulo}`, `Código: ${estudiante || ''}`, `Fecha: ${fecha}`, ''];
     messages.forEach((m) => {
       lineas.push(m.role === 'user' ? 'YO:' : 'INTERLOCUTOR CRÍTICO:');
       if (m.archivo) lineas.push(`[Archivo: ${m.archivo.nombre}]`);
@@ -252,6 +258,7 @@ if (clave === 'tutor') return base;
       lineas.push(
         'MI REFLEXIÓN FINAL',
         `Qué aprendí: ${aprendi}`,
+        `Qué habría hecho sin ayuda: ${sinAyuda}`,
         `Qué me quedó dudoso: ${dudas || '—'}`,
         `Confianza para explicarlo sin ayuda (1 a 5): ${confianza || '—'}`
       );
@@ -860,7 +867,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
                         <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">1</span>
-                        <span className="pt-0.5">¿Qué aprendiste o qué cambió en tu forma de pensar el tema?</span>
+                        <span className="pt-0.5">¿Qué aprendiste tú hoy?</span>
                       </span>
                       <textarea
                         value={aprendi}
@@ -878,6 +885,24 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
                         <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">2</span>
+                        <span className="pt-0.5">¿Qué habrías hecho sin ayuda de la IA? ¿Qué parte pensaste por tu cuenta?</span>
+                      </span>
+                      <textarea
+                        value={sinAyuda}
+                        onChange={(e) => {
+                          setSinAyuda(e.target.value);
+                          setCierreError('');
+                        }}
+                        rows={2}
+                        maxLength={1500}
+                        placeholder="Escríbelo con tus palabras…"
+                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">3</span>
                         <span className="pt-0.5">
                           ¿Qué te quedó dudoso o qué te gustaría profundizar?{' '}
                           <span className="font-normal text-[var(--color-secundario)]">(opcional)</span>
@@ -894,7 +919,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 
                     <div className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">3</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">4</span>
                         <span className="pt-0.5">¿Qué tan seguro te sientes de explicarlo sin ayuda?</span>
                       </span>
                       <div className="flex gap-2" role="group" aria-label="Nivel de seguridad de 1 a 5">

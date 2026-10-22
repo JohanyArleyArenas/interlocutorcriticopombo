@@ -696,7 +696,7 @@ app.post('/api/cierre', (req, res) => {
       sesion: texto(b.sesion, 60),
       modo: `${modo ? modo.titulo : modeKey} — CIERRE`,
       turno: Number(b.turnos) || 0,
-      mensaje: `Qué aprendí: ${texto(b.aprendi)}\nQué me quedó dudoso: ${texto(b.dudas) || '—'}\nConfianza para explicarlo sin ayuda (1 a 5): ${confianza}`,
+      mensaje: `Qué aprendí: ${texto(b.aprendi)}\nQué habría hecho sin ayuda: ${texto(b.sinAyuda) || '—'}\nQué me quedó dudoso: ${texto(b.dudas) || '—'}\nConfianza para explicarlo sin ayuda (1 a 5): ${confianza}`,
       adjunto: '',
       respuesta: '',
       fuentes: '',
