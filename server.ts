@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import mammoth from 'mammoth';
 import { GoogleGenAI } from '@google/genai';
 import { AGENTE } from './src/parametros.ts';
 import { AREAS_ICFES, PREGUNTAS, CUADERNILLOS, buscarPregunta, paginasDePregunta, pdfDePagina, precargarCuadernillos, estadoBanco, diagnostico, contenidoDePregunta, contenidoComoTexto, sincronizarCarpeta, estadoSincronizacion } from './icfes.ts';
@@ -112,7 +113,10 @@ function superaLimite(clave: string, porMinuto: number, porHora: number): boolea
   return false;
 }
 
-const MIMES_PERMITIDOS = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif)|text\/[a-z+.-]+|application\/(md|txt|markdown)|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/i;
+const MIMES_PERMITIDOS = /^(application\/pdf|image\/(png|jpe?g|webp)|text\/plain|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/i;
+const EXT_PERMITIDAS = /\.(jpe?g|png|webp|pdf|txt|docx)$/i;
+// 10 MB en binario equivale aproximadamente a 13,98 MB en base64 (+ prefijo data URL)
+const MAX_BASE64_10MB = Math.ceil((10 * 1024 * 1024 * 4) / 3) + 512;
 
 app.post('/api/chat', async (req, res) => {
   try {
@@ -149,11 +153,20 @@ app.post('/api/chat', async (req, res) => {
       }
       const a = m.archivo;
       if (a) {
-        if (typeof a.mimeType !== 'string' || !MIMES_PERMITIDOS.test(a.mimeType)) {
-          return res.status(400).json({ error: 'Tipo de archivo no permitido. Usa PDF, Word, TXT o imagen.' });
+        const nombreArch = String(a.nombre || '');
+        const mimeArch = String(a.mimeType || '');
+        if (!MIMES_PERMITIDOS.test(mimeArch) && !EXT_PERMITIDAS.test(nombreArch)) {
+          return res.status(400).json({
+            error: 'Formato de archivo no válido. Solo puedes subir imágenes (JPG, PNG, WEBP), PDF, texto (.txt) o Word (.docx).',
+          });
         }
-        if ((a.data && String(a.data).length > 21_000_000) || (a.texto && String(a.texto).length > 300_000)) {
-          return res.status(400).json({ error: 'El archivo es demasiado grande (máximo 15 MB).' });
+        const cleanData = a.data ? String(a.data).replace(/^data:[^;]+;base64,/, '') : '';
+        const bytesEstimados = cleanData ? Math.floor((cleanData.length * 3) / 4) : 0;
+        if (
+          (cleanData && (cleanData.length > MAX_BASE64_10MB || bytesEstimados > 10 * 1024 * 1024)) ||
+          (a.texto && String(a.texto).length > 10 * 1024 * 1024)
+        ) {
+          return res.status(400).json({ error: 'El archivo supera el límite de 10 MB. Sube un archivo más liviano.' });
         }
       }
     }
@@ -286,46 +299,67 @@ ${reglaMatematicas}
 
 El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
 
-    // Convert messages to Gemini API format
-    const contents = slicedMessages.map((msg) => {
-      const parts: any[] = [];
+    // Convert messages to Gemini API format (extrae en el servidor el texto de archivos .docx con mammoth)
+    const contents = await Promise.all(
+      slicedMessages.map(async (msg) => {
+        const parts: any[] = [];
 
-      if (msg.archivo) {
-        const { mimeType, data, texto, nombre } = msg.archivo;
-        const cleanBase64 = data ? data.replace(/^data:[^;]+;base64,/, '') : '';
+        if (msg.archivo) {
+          const { mimeType, data, nombre } = msg.archivo;
+          let textoExtraido = msg.archivo.texto;
+          const cleanBase64 = data ? data.replace(/^data:[^;]+;base64,/, '') : '';
+          const esDocx =
+            mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            /\.docx$/i.test(String(nombre || ''));
+          const esTxt = mimeType === 'text/plain' || /\.txt$/i.test(String(nombre || ''));
 
-        // If it is an image or PDF, send as inlineData
-        if (cleanBase64 && (mimeType.startsWith('image/') || mimeType === 'application/pdf')) {
-          parts.push({
-            inlineData: {
-              mimeType,
-              data: cleanBase64,
-            },
-          });
+          // Word (.docx): se extrae el texto en el servidor con mammoth y se envía como texto al modelo
+          if (esDocx && cleanBase64) {
+            try {
+              const buffer = Buffer.from(cleanBase64, 'base64');
+              const resultado = await mammoth.extractRawText({ buffer } as any);
+              textoExtraido = resultado.value || textoExtraido || '';
+              msg.archivo.texto = textoExtraido;
+            } catch (errDocx: any) {
+              console.error('[Archivo DOCX] Error al extraer texto con mammoth:', errDocx?.message || errDocx);
+            }
+          } else if (esTxt && cleanBase64 && !textoExtraido) {
+            textoExtraido = Buffer.from(cleanBase64, 'base64').toString('utf-8');
+            msg.archivo.texto = textoExtraido;
+          }
+
+          // Imágenes (JPG, PNG, WEBP) y PDF se envían a Gemini como inlineData junto con el mensaje del estudiante
+          if (cleanBase64 && (mimeType.startsWith('image/') || mimeType === 'application/pdf')) {
+            parts.push({
+              inlineData: {
+                mimeType,
+                data: cleanBase64,
+              },
+            });
+          }
+
+          // Texto (.txt) o Word (.docx) extraído
+          if (textoExtraido && textoExtraido.trim()) {
+            parts.push({
+              text: `[Archivo adjunto: ${nombre}]\n${textoExtraido}`,
+            });
+          }
         }
 
-        // If it is text or docx extracted text
-        if (texto) {
-          parts.push({
-            text: `[Archivo adjunto: ${nombre}]\n${texto}`,
-          });
+        if (msg.text && msg.text.trim()) {
+          parts.push({ text: msg.text });
         }
-      }
 
-      if (msg.text && msg.text.trim()) {
-        parts.push({ text: msg.text });
-      }
+        if (parts.length === 0) {
+          parts.push({ text: '(Adjunto de archivo)' });
+        }
 
-      // If parts is empty (e.g. file with no text and no data yet), fallback
-      if (parts.length === 0) {
-        parts.push({ text: '(Adjunto de archivo)' });
-      }
-
-      return {
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts,
-      };
-    });
+        return {
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts,
+        };
+      })
+    );
 
     // Entrenador Saber 11: las páginas del cuadernillo acompañan el último mensaje del estudiante
     if (partesIcfes.length) {
@@ -420,6 +454,16 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     let modeloUsado = modelsToTry[0];
     let fuentes: Array<{ titulo: string; url: string }> = [];
     let had429 = false;
+    let detectoIdeaPrevia = false;
+
+    const PATRON_MARCA_IDEA_INICIO = /^\s*⟦\s*idea\s*⟧[ \t]*\r?\n?/i;
+    const PATRON_MARCA_IDEA_GLOBAL = /⟦\s*idea\s*⟧[ \t]*\r?\n?/gi;
+    const limpiarMarcaIdea = (t: string): string => {
+      if (PATRON_MARCA_IDEA_INICIO.test(t) || /⟦\s*idea\s*⟧/i.test(t)) {
+        detectoIdeaPrevia = true;
+      }
+      return t.replace(PATRON_MARCA_IDEA_INICIO, '').replace(PATRON_MARCA_IDEA_GLOBAL, '');
+    };
 
     // ===== Respuesta en vivo (streaming): el texto llega al estudiante mientras se genera =====
     const quiereStream = (req.body as any)?.stream !== false;
@@ -469,10 +513,18 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           const msPrimerTexto = Date.now() - tInicioFlujo;
           console.log(`[Primer texto] ${(r as any)?.modelVersion || model} (${nivelLog}) en ${msPrimerTexto} ms (modo: ${modeKey})`);
           registrarTiempo({ modo: modeKey, modelo: (r as any)?.modelVersion || model, primerTextoMs: msPrimerTexto, razonar: usarMedium, adjuntos: partesIcfes.length });
-          return r;
+          const textoLimpio = limpiarMarcaIdea(r.text || '');
+          return {
+            text: textoLimpio,
+            candidates: r.candidates,
+            modelVersion: (r as any)?.modelVersion || model,
+          };
         }
         const flujo = await ai.models.generateContentStream({ model, contents, config: cfgConCorte });
         let texto = '';
+        let bufferInicio = '';
+        let inicioResuelto = false;
+        let reinicioPendiente = textoEnviado;
         let ultimo: any = null;
         let versionModelo = '';
         let primerTextoRecibido = false;
@@ -491,14 +543,56 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
               console.log(`[Primer texto] ${(parte as any)?.modelVersion || model} (${nivelLog}) en ${msPrimerTexto} ms (modo: ${modeKey})`);
               registrarTiempo({ modo: modeKey, modelo: (parte as any)?.modelVersion || model, primerTextoMs: msPrimerTexto, razonar: usarMedium, adjuntos: partesIcfes.length });
             }
-            if (!texto && textoEnviado) enviarEvento({ t: 'reinicio' });
-            texto += delta;
+            if (!inicioResuelto) {
+              bufferInicio += delta;
+              const sinEspacios = bufferInicio.trimStart();
+              if (!sinEspacios) continue;
+              // Si empieza con '⟦' (o posible prefijo de '⟦idea⟧'), espera hasta cerrar la línea o tener suficientes caracteres
+              const posibleMarca = '⟦idea⟧'.startsWith(sinEspacios.slice(0, Math.min(sinEspacios.length, 6)).toLowerCase()) || /^⟦/.test(sinEspacios);
+              const marcaCompletaConSalto = /^\s*⟦\s*idea\s*⟧[ \t]*\r?\n/i.test(bufferInicio);
+              if (posibleMarca && !marcaCompletaConSalto && bufferInicio.length < 20) {
+                continue;
+              }
+              inicioResuelto = true;
+              const limpioInicial = limpiarMarcaIdea(bufferInicio);
+              bufferInicio = '';
+              if (limpioInicial) {
+                if (reinicioPendiente) {
+                  enviarEvento({ t: 'reinicio' });
+                  reinicioPendiente = false;
+                }
+                texto += limpioInicial;
+                textoEnviado = true;
+                enviarEvento({ t: 'delta', text: limpioInicial });
+              }
+            } else {
+              const deltaLimpio = limpiarMarcaIdea(delta);
+              if (deltaLimpio) {
+                if (reinicioPendiente) {
+                  enviarEvento({ t: 'reinicio' });
+                  reinicioPendiente = false;
+                }
+                texto += deltaLimpio;
+                textoEnviado = true;
+                enviarEvento({ t: 'delta', text: deltaLimpio });
+              }
+            }
+          }
+        }
+        if (!inicioResuelto && bufferInicio) {
+          const limpioRestante = limpiarMarcaIdea(bufferInicio);
+          if (limpioRestante) {
+            if (reinicioPendiente) {
+              enviarEvento({ t: 'reinicio' });
+              reinicioPendiente = false;
+            }
+            texto += limpioRestante;
             textoEnviado = true;
-            enviarEvento({ t: 'delta', text: delta });
+            enviarEvento({ t: 'delta', text: limpioRestante });
           }
         }
         return {
-          text: texto,
+          text: limpiarMarcaIdea(texto),
           candidates: ultimo?.candidates,
           groundingChunks: chunksGrounding,
           modelVersion: versionModelo || ultimo?.modelVersion || model,
@@ -523,7 +617,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         console.log(`[Tiempo] ${model} (${nivelActual}) -> ${(response as any).modelVersion || model} en ${Date.now() - t0} ms (busqueda: ${!!modo.busqueda})`);
 
         if (response.text) {
-          replyText = response.text;
+          replyText = limpiarMarcaIdea(response.text);
           modeloUsado = (response as any).modelVersion || model;
 
           // Extract grounding sources if available (acumuladas en el stream o en el candidato final)
@@ -647,7 +741,8 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           });
 
           if (fallbackResponse.text) {
-            replyText = `_Aviso: la búsqueda en Google no estuvo disponible en este momento._\n\n${fallbackResponse.text}`;
+            const textoFbLimpio = limpiarMarcaIdea(fallbackResponse.text);
+            replyText = `_Aviso: la búsqueda en Google no estuvo disponible en este momento._\n\n${textoFbLimpio}`;
             modeloUsado = (fallbackResponse as any).modelVersion || fbModel;
             fuentes = [];
             break;
@@ -664,12 +759,22 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       // Registro de la interacción en Google Sheets (no bloquea la respuesta)
       const ultimoEst = mensajesEst[mensajesEst.length - 1];
       const textoUltimo = ultimoEst?.text || '';
+      const tieneIdeaPrevia = detectoIdeaPrevia || textoUltimo.includes('[Mi idea previa]');
+      const tieneVerificacion = textoUltimo.startsWith('[Verificación externa]');
+      const tieneArchivo = Boolean(ultimoEst?.archivo && modeKey !== 'icfes');
       const sufijoModo =
-        (textoUltimo.startsWith('[Verificación externa]')
-          ? ' · verificación'
-          : textoUltimo.includes('[Mi idea previa]')
-          ? ' · idea previa'
-          : '') + (enviarRecordatorioVerificacion ? ' · recordatorio' : '');
+        (tieneIdeaPrevia ? ' · idea previa' : '') +
+        (tieneVerificacion ? ' · verificación' : '') +
+        (enviarRecordatorioVerificacion ? ' · recordatorio' : '') +
+        (tieneArchivo ? ' · archivo' : '');
+      const infoArchivoRegistro =
+        tieneArchivo && ultimoEst?.archivo
+          ? `${ultimoEst.archivo.nombre} (${ultimoEst.archivo.mimeType || 'archivo'})`
+          : '';
+      const fuentesRegistro = [
+        ...(infoArchivoRegistro ? [infoArchivoRegistro] : []),
+        ...fuentes.map((f) => f.url),
+      ].join('\n');
       registrarInteraccion({
         fecha: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
         estudiante: (estudiante || '').slice(0, 120),
@@ -677,9 +782,9 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         modo: `${modo.titulo}${sufijoModo}`,
         turno: mensajesEst.length,
         mensaje: textoUltimo,
-        adjunto: registroIcfes || ultimoEst?.archivo?.nombre || '',
+        adjunto: registroIcfes || '',
         respuesta: replyText,
-        fuentes: fuentes.map((f) => f.url).join('\n'),
+        fuentes: fuentesRegistro,
         modelo: modeloUsado,
         segundos: Math.round((Date.now() - tInicio) / 100) / 10,
       });

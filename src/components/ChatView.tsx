@@ -83,8 +83,25 @@ const EJEMPLOS_MODO: Record<string, string[]> = {
 // Modos que muestran el botón «Terminar» y «Lo verifiqué por fuera» (todos excepto icfes)
 const MODOS_CON_CIERRE = ['socratico', 'explorar', 'argumento', 'verificar', 'auditar', 'escrito', 'tutor'];
 
-// Modos que piden «Primero tú» (idea previa obligatoria antes del primer mensaje)
-const MODOS_CON_IDEA_PREVIA = ['socratico', 'tutor', 'argumento', 'auditar'];
+const PLACEHOLDERS_CAMPO = [
+  '¿Qué estás pensando?',
+  'Cuéntame tu idea, aunque sea a medias…',
+  '¿Por dónde va tu idea?',
+  'Empieza por lo que ya sospechas…',
+  'Escribe lo que se te ocurra; lo pensamos juntos',
+];
+
+// Detecta si la respuesta del agente sugiere cambiar a otro modo (cuando no incluyó ya un enlace /modo:clave)
+const PATRONES_REDIRECCION_MODO: Array<{ key: string; regex: RegExp }> = [
+  { key: 'verificar', regex: /\bmodo\s+«?verificar(?:\s+una\s+afirmaci[oó]n)?»?|«verificar\s+una\s+afirmaci[oó]n»|\*\*verificar\s+una\s+afirmaci[oó]n\*\*/i },
+  { key: 'socratico', regex: /\bmodo\s+«?di[aá]logo\s+socr[aá]tico»?|«di[aá]logo\s+socr[aá]tico»|\*\*di[aá]logo\s+socr[aá]tico\*\*/i },
+  { key: 'explorar', regex: /\bmodo\s+«?gu[ií]a\s+de\s+investigaci[oó]n»?|«gu[ií]a\s+de\s+investigaci[oó]n»|\*\*gu[ií]a\s+de\s+investigaci[oó]n\*\*/i },
+  { key: 'argumento', regex: /\bmodo\s+«?taller\s+de\s+argumentos»?|«taller\s+de\s+argumentos»|\*\*taller\s+de\s+argumentos\*\*/i },
+  { key: 'auditar', regex: /\bmodo\s+«?auditar\s+una\s+respuesta\s+de\s+ia»?|«auditar\s+una\s+respuesta\s+de\s+ia»|\*\*auditar\s+una\s+respuesta\s+de\s+ia\*\*/i },
+  { key: 'tutor', regex: /\bmodo\s+«?tutor\s+de\s+matem[aá]ticas,\s+f[ií]sica\s+y\s+qu[ií]mica»?|«tutor\s+de\s+matem[aá]ticas,\s+f[ií]sica\s+y\s+qu[ií]mica»|\*\*tutor\s+de\s+matem[aá]ticas,\s+f[ií]sica\s+y\s+qu[ií]mica\*\*/i },
+  { key: 'icfes', regex: /\bmodo\s+«?entrenador\s+saber\s+11»?|«entrenador\s+saber\s+11»|\*\*entrenador\s+saber\s+11\*\*/i },
+  { key: 'escrito', regex: /\bmodo\s+«?revisar\s+mi\s+escrito»?|«revisar\s+mi\s+escrito»|\*\*revisar\s+mi\s+escrito\*\*/i },
+];
 
 export interface ChatArchivo {
   nombre: string;
@@ -109,6 +126,8 @@ export interface ChatMessage {
 interface ChatViewProps {
   modeKey: string;
   onBackToModos: () => void;
+  onChangeModo?: (newModeKey: string, mensajesConservar?: ChatMessage[]) => void;
+  initialMessages?: ChatMessage[];
   estudiante?: string;
 }
 
@@ -121,7 +140,7 @@ interface AttachedFilePreview {
   texto?: string;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estudiante }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onChangeModo, initialMessages, estudiante }) => {
   const modo: ModoConfig = AGENTE.modos[modeKey] || {
     titulo: 'Diálogo socrático',
     descripcion: '',
@@ -133,16 +152,41 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, estu
     maxTokens: 1000,
   };
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const saludoInicial: ChatMessage = {
       id: 'greeting',
       role: 'model',
       text: modo.saludo,
       timestamp: Date.now(),
-    },
-  ]);
+    };
+    if (modeKey !== 'icfes' && Array.isArray(initialMessages) && initialMessages.length > 0) {
+      const previos = initialMessages.filter((m) => m.id !== 'greeting' && !m.pregunta && !m.selector);
+      if (previos.length > 0) {
+        return [saludoInicial, ...previos];
+      }
+    }
+    return [saludoInicial];
+  });
 
   const [inputText, setInputText] = useState('');
+  const [placeholderIdx, setPlaceholderIdx] = useState(() =>
+    Math.floor(Math.random() * PLACEHOLDERS_CAMPO.length)
+  );
+  const prevVacioRef = useRef(true);
+  useEffect(() => {
+    const vacio = inputText.length === 0;
+    if (vacio && !prevVacioRef.current) {
+      setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS_CAMPO.length);
+    }
+    prevVacioRef.current = vacio;
+  }, [inputText]);
+
+  const cambiarAModo = (destino: string) => {
+    if (!destino || !AGENTE.modos[destino] || destino === modeKey) return;
+    if (onChangeModo) {
+      onChangeModo(destino, messages);
+    }
+  };
   const [attachedFile, setAttachedFile] = useState<AttachedFilePreview | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -211,11 +255,6 @@ if (clave === 'tutor') return base;
   const [dudas, setDudas] = useState('');
   const [confianza, setConfianza] = useState(0);
   const turnosEstudiante = messages.filter((m) => m.role === 'user').length;
-
-  // ===== Primero tú: idea previa antes del primer mensaje =====
-  const [ideaPrevia, setIdeaPrevia] = useState('');
-  const ideaPreviaRef = useRef<HTMLInputElement | null>(null);
-  const requiereIdeaPrevia = MODOS_CON_IDEA_PREVIA.includes(modeKey) && turnosEstudiante === 0;
 
   // ===== Lo verifiqué por fuera: formulario breve de contrastación externa =====
   const [verifAbierta, setVerifAbierta] = useState(false);
@@ -437,34 +476,54 @@ if (clave === 'tutor') return base;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const [mostrarAvisoPrivacidadArchivo, setMostrarAvisoPrivacidadArchivo] = useState(false);
+  const avisoPrivacidadMostradoRef = useRef(false);
+  const activarAvisoPrivacidadUnaVez = () => {
+    if (!avisoPrivacidadMostradoRef.current) {
+      avisoPrivacidadMostradoRef.current = true;
+      setMostrarAvisoPrivacidadArchivo(true);
+    }
+  };
+
   const processFile = async (file: File) => {
-    const MAX_SIZE = 15 * 1024 * 1024; // 15 MB
-    if (file.size > MAX_SIZE) {
-      alert('El archivo no debe superar 15 MB.');
+    activarAvisoPrivacidadUnaVez();
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'txt', 'docx'];
+    if (!allowed.includes(ext)) {
+      setErrorMessage(
+        'Formato de archivo no válido. Solo puedes subir imágenes (JPG, PNG, WEBP), PDF, texto (.txt) o Word (.docx).'
+      );
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const allowed = ['pdf', 'docx', 'txt', 'md', 'png', 'jpg', 'jpeg', 'webp'];
-    if (!allowed.includes(ext)) {
-      alert('Formato no admitido. Acepta: PDF, DOCX, TXT, MD, PNG, JPG, WEBP.');
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    if (file.size > MAX_SIZE) {
+      setErrorMessage('El archivo supera el límite de 10 MB. Sube un archivo más liviano.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
+
+    const mimePorExt: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+      pdf: 'application/pdf',
+      txt: 'text/plain',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    };
 
     setIsProcessingFile(true);
     try {
       let texto: string | undefined = undefined;
       let data: string | undefined = undefined;
 
-      if (ext === 'docx') {
-        const arrayBuffer = await file.arrayBuffer();
-        const mammoth: any = (await import('mammoth')).default ?? (await import('mammoth'));
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        texto = result.value;
-      } else if (ext === 'txt' || ext === 'md') {
+      if (ext === 'txt') {
         texto = await file.text();
       } else {
-        // PDF or Image: read as DataURL base64
+        // Imágenes, PDF y Word (.docx): se leen en base64 (el servidor extrae el texto de .docx con mammoth)
         data = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
@@ -476,7 +535,7 @@ if (clave === 'tutor') return base;
       setAttachedFile({
         file,
         nombre: file.name,
-        mimeType: file.type || `application/${ext}`,
+        mimeType: mimePorExt[ext] || file.type || `application/${ext}`,
         tamano: formatFileSize(file.size),
         data,
         texto,
@@ -484,7 +543,7 @@ if (clave === 'tutor') return base;
       setErrorMessage(null);
     } catch (err: any) {
       console.error('Error al procesar archivo:', err);
-      alert('No se pudo leer el archivo. Intenta de nuevo.');
+      setErrorMessage('No se pudo leer el archivo. Intenta de nuevo.');
     } finally {
       setIsProcessingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -496,10 +555,6 @@ const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; r
   forzadoArg && typeof forzadoArg.texto === 'string' ? forzadoArg : undefined;
     const trimmed = (f ? f.texto : inputText).trim();
     if ((!trimmed && !attachedFile && !f?.archivo) || isLoading || isProcessingFile || enviandoRef.current) return;
-    if (!f && requiereIdeaPrevia && !ideaPrevia.trim()) {
-      ideaPreviaRef.current?.focus();
-      return;
-    }
     enviandoRef.current = true;
 
     let userArchivo: ChatArchivo | undefined = f?.archivo;
@@ -513,15 +568,10 @@ const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; r
       };
     }
 
-    const textoConIdea =
-      !f && requiereIdeaPrevia && ideaPrevia.trim()
-        ? `[Mi idea previa]: ${ideaPrevia.trim()}${trimmed ? `\n\n${trimmed}` : ''}`
-        : trimmed;
-
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      text: textoConIdea,
+      text: trimmed,
       archivo: userArchivo,
       icfes: f ? f.icfes : esIcfes && preguntaActiva ? { id: preguntaActiva.id, accion: 'conversar' } : undefined,
       timestamp: Date.now(),
@@ -529,9 +579,15 @@ const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; r
 
     const nextMessages = [...(f?.reintento ? messages.slice(0, -1) : messages), userMessage];
     setMessages(nextMessages);
-    if (!f) setInputText('');
-    if (!f) setIdeaPrevia('');
-    if (!f) setAttachedFile(null);
+    if (!f) {
+      setInputText('');
+      setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS_CAMPO.length);
+      prevVacioRef.current = true;
+    }
+    if (!f) {
+      setAttachedFile(null);
+      setMostrarAvisoPrivacidadArchivo(false);
+    }
     setErrorMessage(null);
     // En móvil se cierra el teclado al enviar para poder leer la respuesta
     if (esMovil()) textareaRef.current?.blur();
@@ -1347,7 +1403,7 @@ if (msg.selector) {
                     {esIcfes && (
 <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} areaActual={preguntaActiva?.area} />
 )}
-{sinMensajes && (ejemplos.length > 0 || modo.adjuntos) && (
+{sinMensajes && (ejemplos.length > 0 || modeKey === 'tutor' || modeKey === 'escrito') && (
                       <div className="flex flex-wrap gap-2 mt-3">
                         {ejemplos.map((ej) => (
                           <button
@@ -1371,10 +1427,13 @@ if (msg.selector) {
                             ↻ otras ideas
                           </button>
                         )}
-                        {modo.adjuntos && (
+                        {(modeKey === 'tutor' || modeKey === 'escrito') && modo.adjuntos && (
                           <button
                             type="button"
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => {
+                              activarAvisoPrivacidadUnaVez();
+                              fileInputRef.current?.click();
+                            }}
                             className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 min-h-[44px] rounded-2xl bg-[var(--color-acento)] text-white hover:opacity-90 transition-opacity"
                           >
                             <Upload className="w-4 h-4" aria-hidden="true" /> {modeKey === 'tutor' ? 'Subir foto del ejercicio' : 'Subir mi escrito'}
@@ -1388,6 +1447,12 @@ if (msg.selector) {
             }
 
             // Respuesta de la IA: sin burbuja, sin avatar, texto sobre el fondo
+            const tieneEnlaceModo = /\/?modo:[a-z]+/i.test(msg.text || '');
+            const modosSugeridos = !tieneEnlaceModo
+              ? PATRONES_REDIRECCION_MODO.filter(
+                  (p) => p.key !== modeKey && AGENTE.modos[p.key] && p.regex.test(msg.text || '')
+                ).map((p) => p.key)
+              : [];
             return (
               <div key={msg.id} className="flex flex-col message-appear">
                 <div className="overflow-hidden">
@@ -1396,19 +1461,57 @@ if (msg.selector) {
                       remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
                       components={{
                         pre: renderPre,
-                        a: ({ node, ...props }) => (
-                          <a
-                            {...props}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[var(--color-acento)] underline font-medium hover:opacity-85"
-                          />
-                        ),
+                        a: ({ node, href, children, ...props }) => {
+                          const matchModo = /^\/?#?modo:([a-z]+)$/i.exec(String(href || '').trim());
+                          if (matchModo) {
+                            const claveDestino = matchModo[1].toLowerCase();
+                            const modoDestino = AGENTE.modos[claveDestino];
+                            if (modoDestino && claveDestino !== modeKey) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => cambiarAModo(claveDestino)}
+                                  className="inline-flex items-center gap-1.5 mt-1 mr-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
+                                >
+                                  <span>{children || `Cambiar a ${modoDestino.titulo}`}</span>
+                                  <span aria-hidden="true">→</span>
+                                </button>
+                              );
+                            }
+                          }
+                          return (
+                            <a
+                              {...props}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[var(--color-acento)] underline font-medium hover:opacity-85"
+                            >
+                              {children}
+                            </a>
+                          );
+                        },
                       }}
                     >
                       {prepararMatematicas(msg.text)}
                     </ReactMarkdown>
                   </div>
+
+                  {modosSugeridos.length > 0 && onChangeModo && (
+                    <div className="mt-2.5 flex flex-wrap gap-2">
+                      {modosSugeridos.map((claveSug) => (
+                        <button
+                          key={claveSug}
+                          type="button"
+                          onClick={() => cambiarAModo(claveSug)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
+                        >
+                          <span>Cambiar a {AGENTE.modos[claveSug].titulo}</span>
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Chips redondeados de fuentes debajo de la respuesta */}
                   {msg.fuentes && msg.fuentes.length > 0 && (
@@ -1541,26 +1644,6 @@ Cambiar de área
             </div>
           )}
 
-          {/* Primero tú: idea previa obligatoria antes del primer mensaje */}
-          {requiereIdeaPrevia && (
-            <div className="mb-2.5 rounded-[18px] bg-[var(--color-superficie)] border border-[var(--color-separador)] shadow-xs px-3.5 py-2.5 flex flex-col gap-1.5 message-appear">
-              <label htmlFor="idea-previa-input" className="text-[13.5px] font-medium text-[var(--color-texto)] leading-snug">
-                ¿Qué piensas tú antes de preguntarle a la IA? Escribe tu idea, tu intento o tu hipótesis, aunque no estés seguro.
-              </label>
-              <input
-                id="idea-previa-input"
-                ref={ideaPreviaRef}
-                type="text"
-                value={ideaPrevia}
-                onChange={(e) => setIdeaPrevia(e.target.value)}
-                maxLength={600}
-                disabled={isLoading || isProcessingFile}
-                placeholder="Tu idea, intento o hipótesis previa (obligatorio)…"
-                className="w-full h-[38px] px-3 rounded-[12px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[14.5px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
-              />
-            </div>
-          )}
-
           {/* Formulario cápsula */}
           <form
             onSubmit={(e) => {
@@ -1580,15 +1663,18 @@ Cambiar de área
                       processFile(e.target.files[0]);
                     }
                   }}
-                  accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.docx"
                   className="hidden"
                 />
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    activarAvisoPrivacidadUnaVez();
+                    fileInputRef.current?.click();
+                  }}
                   disabled={isLoading || isProcessingFile}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--color-secundario)] hover:text-[var(--color-texto)] hover:bg-[var(--color-fondo)] transition-colors shrink-0 mb-0.5"
-                  title="Adjuntar archivo (.pdf, .docx, .txt, .md, imagen)"
+                  title="Adjuntar archivo (JPG, PNG, WEBP, PDF, TXT, DOCX — máx. 10 MB)"
                   aria-label="Adjuntar archivo"
                 >
                   <Paperclip className="w-5 h-5" />
@@ -1604,16 +1690,16 @@ Cambiar de área
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isLoading || (esIcfes && !preguntaActiva)}
-              placeholder={esIcfes ? (preguntaActiva ? 'Pregúntame lo que no te quedó claro…' : 'Elige un área para empezar') : 'Escribe aquí…'}
+              placeholder={esIcfes && !preguntaActiva ? 'Elige un área para empezar' : PLACEHOLDERS_CAMPO[placeholderIdx]}
               className="flex-1 bg-transparent py-2 text-[16px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)] resize-none focus:outline-none max-h-[144px] leading-snug"
             />
 
             {/* Botón enviar circular de 36px dentro del campo a la derecha (verde, icono flecha hacia arriba, deshabilitado y gris si está vacío) */}
             <button
               type="submit"
-              disabled={(!inputText.trim() && !attachedFile) || (requiereIdeaPrevia && !ideaPrevia.trim()) || isLoading || isProcessingFile}
+              disabled={(!inputText.trim() && !attachedFile) || isLoading || isProcessingFile}
               className={`w-[36px] h-[36px] rounded-full flex items-center justify-center shrink-0 mb-0.5 transition-all ${
-                (inputText.trim() || attachedFile) && (!requiereIdeaPrevia || !!ideaPrevia.trim()) && !isLoading && !isProcessingFile
+                (inputText.trim() || attachedFile) && !isLoading && !isProcessingFile
                   ? 'bg-[#0E5C36] dark:bg-[#2E9E64] text-white cursor-pointer active:scale-95 shadow-xs'
                   : 'bg-[var(--color-separador)]/50 text-[var(--color-secundario)] cursor-not-allowed opacity-60'
               }`}
@@ -1623,6 +1709,12 @@ Cambiar de área
               <ArrowUp className="w-5 h-5 stroke-[2.5]" />
             </button>
           </form>
+
+          {modo.adjuntos && mostrarAvisoPrivacidadArchivo && (
+            <p className="mt-1.5 px-4 text-[12px] text-[var(--color-secundario)] leading-snug message-appear">
+              No subas documentos con tu nombre, fotos de personas ni datos personales.
+            </p>
+          )}
         </div>
       </div>
     </div>

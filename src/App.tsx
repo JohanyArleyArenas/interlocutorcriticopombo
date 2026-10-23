@@ -178,6 +178,7 @@ export default function App() {
   }, []);
 
   const [selectedModeKey, setSelectedModeKey] = useState<string | null>(null);
+  const [transferredMessages, setTransferredMessages] = useState<any[] | undefined>(undefined);
   const [estudiante, setEstudiante] = useState<string>(() => leerEstudiante());
 
   // Móvil: ajusta la altura de la app al área visible cuando aparece el teclado,
@@ -226,7 +227,14 @@ export default function App() {
     <div className={`${selectedModeKey ? 'h-[var(--app-h,100dvh)] overflow-hidden' : 'min-h-screen'} flex flex-col bg-[var(--color-fondo)] text-[var(--color-texto)] selection:bg-[#0E5C36]/20 selection:text-[#0E5C36]`}>
       {/* Encabezado Apple HIG translúcido con escudo y nombres */}
       <Header
-        onBackToModos={selectedModeKey ? () => setSelectedModeKey(null) : undefined}
+        onBackToModos={
+          selectedModeKey
+            ? () => {
+                setTransferredMessages(undefined);
+                setSelectedModeKey(null);
+              }
+            : undefined
+        }
       />
 
       {/* Contenedor Principal */}
@@ -246,7 +254,15 @@ export default function App() {
               key={selectedModeKey}
               modeKey={selectedModeKey}
               estudiante={estudiante}
-              onBackToModos={() => setSelectedModeKey(null)}
+              initialMessages={transferredMessages}
+              onChangeModo={(newModeKey, mensajesConservar) => {
+                setTransferredMessages(mensajesConservar);
+                setSelectedModeKey(newModeKey);
+              }}
+              onBackToModos={() => {
+                setTransferredMessages(undefined);
+                setSelectedModeKey(null);
+              }}
             />
           </React.Suspense>
         ) : (
@@ -266,7 +282,12 @@ export default function App() {
                 Salir
               </button>
             </div>
-            <ModosGrid onSelectModo={(key) => setSelectedModeKey(key)} />
+            <ModosGrid
+              onSelectModo={(key) => {
+                setTransferredMessages(undefined);
+                setSelectedModeKey(key);
+              }}
+            />
           </>
         )}
         </div>
