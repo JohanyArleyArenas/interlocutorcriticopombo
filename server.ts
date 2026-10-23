@@ -81,76 +81,21 @@ function registrarInteraccion(fila: Record<string, unknown>) {
     .catch((err) => console.log('[Registro] No se pudo guardar la interacción:', err?.message));
 }
 
-// ===== Memoria de cupos agotados (plan gratuito) =====
-// Cuando un modelo responde 429 por cupo agotado, se recuerda hasta cuándo y se salta
-// directamente, sin gastar un intento ni esperar el backoff en cada mensaje.
-const agotadoHasta = new Map<string, number>();
-const claveCupo = (model: string, conBusqueda: boolean) => `${model}|${conBusqueda ? 'busqueda' : 'normal'}`;
-
-function estaAgotado(model: string, conBusqueda: boolean): boolean {
-  const hasta = agotadoHasta.get(claveCupo(model, conBusqueda));
-  return !!hasta && Date.now() < hasta;
-}
-
-function marcarAgotado(model: string, conBusqueda: boolean, mensaje: string): number {
-  const m = /retryDelay"?\s*:\s*"?(\d+(?:\.\d+)?)s/.exec(mensaje) || /retry in (\d+(?:\.\d+)?)\s*s/i.exec(mensaje);
-  let ms = m ? Math.ceil(parseFloat(m[1]) * 1000) : 60_000;
-  // Si es el límite DIARIO, Google a veces sugiere reintentar en segundos; se salta al menos 1 hora.
-  if (/PerDay/i.test(mensaje)) ms = Math.max(ms, 60 * 60 * 1000);
-  // La búsqueda en Google sin cupo (plan gratuito) no se recupera en segundos: se salta 30 min
-  if (conBusqueda && !m) ms = Math.max(ms, 30 * 60 * 1000);
-  agotadoHasta.set(claveCupo(model, conBusqueda), Date.now() + ms);
-  console.log(`[Cupo] ${model} (${conBusqueda ? 'con' : 'sin'} búsqueda) agotado; se saltará durante ${Math.round(ms / 1000)} s`);
-  return ms;
-}
-
-// Model cascade strictly per user instructions
+// Modelos del plan pago: Flash con MEDIUM o LOW según la tarea y Flash Lite para pistas rápidas y como respaldo
 const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
-const SEARCH_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+const FLASH_PAUSA_MS = 2 * 60 * 1000; // 2 minutos
+let flashLentoHasta = 0;
 
-// ===== Modelos disponibles =====
-// En el plan gratuito cada modelo tiene su propio cupo diario y por minuto. Al arrancar se
-// consultan los modelos Flash disponibles en la cuenta y se usan todos en cascada: cuando uno
-// se queda sin cupo, responde el siguiente.
-let modelosDescubiertos: string[] = [];
 // Tiempos recientes de la IA (para el docente: /api/diagnostico-ia)
 const tiemposIA: any[] = [];
 const registrarTiempo = (t: any) => {
   tiemposIA.push({ ...t, hora: new Date().toLocaleTimeString('es-CO', { timeZone: 'America/Bogota' }) });
   if (tiemposIA.length > 40) tiemposIA.shift();
 };
-async function descubrirModelos(): Promise<void> {
-  try {
-    const encontrados: string[] = [];
-    const pager: any = await ai.models.list({ config: { pageSize: 200 } } as any);
-    for await (const mod of pager) {
-      const nombre = String(mod?.name || '').replace(/^models\//, '');
-      const acciones: string[] = Array.isArray(mod?.supportedActions) ? mod.supportedActions : [];
-      if (!/^gemini-([0-9.]+-)?flash(-lite)?(-latest)?$/.test(nombre)) continue;
-      if (acciones.length && !acciones.includes('generateContent')) continue;
-      encontrados.push(nombre);
-    }
-    const version = (n: string) => parseFloat((n.match(/gemini-([0-9.]+)-/) || [])[1] || '0');
-    const ordenar = (lista: string[]) => lista.sort((a, b) => version(b) - version(a));
-    const normales = ordenar(encontrados.filter((n) => !n.includes('-lite') && n !== 'gemini-flash-latest'));
-    const ligeros = ordenar(encontrados.filter((n) => n.includes('-lite') && n !== 'gemini-flash-lite-latest'));
-    // Orden: el Flash principal y enseguida el Flash-Lite (el más rápido); luego las demás versiones
-    const cascada = [
-      ...(encontrados.includes('gemini-flash-latest') ? ['gemini-flash-latest'] : []),
-      ...(encontrados.includes('gemini-flash-lite-latest') ? ['gemini-flash-lite-latest'] : []),
-      ...normales,
-      ...ligeros,
-    ].slice(0, 8);
-    if (cascada.length) modelosDescubiertos = cascada;
-    console.log('[Modelos] Cascada disponible:', (modelosDescubiertos.length ? modelosDescubiertos : CANDIDATE_MODELS).join(', '));
-  } catch (e: any) {
-    console.log('[Modelos] No se pudieron listar los modelos; se usa la lista fija.', e?.message || e);
-  }
-}
-descubrirModelos();
+
 precargarCuadernillos();
 
-// ===== Límite de uso (protege el cupo de la API) =====
+// ===== Límite de uso (protege el costo de la API) =====
 // Por sesión de estudiante y, de forma más generosa, por red (todo un salón comparte la misma IP).
 const usoReciente = new Map<string, number[]>();
 function superaLimite(clave: string, porMinuto: number, porHora: number): boolean {
@@ -186,13 +131,13 @@ app.post('/api/chat', async (req, res) => {
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'El historial de mensajes está vacío.' });
     }
-    // ===== Validación de la solicitud (seguridad) =====
+    // ===== Validación de la solicitud (seguridad y costo) =====
     const ip = String(req.ip || req.headers['x-forwarded-for'] || 'desconocida').split(',')[0].trim();
     const claveSesion = 'sesion:' + String(sesion || ip).slice(0, 60);
-    if (superaLimite('ip:' + ip, 120, 2000) || superaLimite(claveSesion, 8, 120)) {
+    if (superaLimite('ip:' + ip, 120, 2000) || superaLimite(claveSesion, 8, 50)) {
       return res.status(429).json({ error: 'Vas muy rápido. Espera un minuto antes de enviar otro mensaje.' });
     }
-    if (messages.length > 80) {
+    if (messages.length > 150) {
       return res.status(400).json({ error: 'La conversación es demasiado larga. Inicia un chat nuevo.' });
     }
     for (const m of messages as any[]) {
@@ -218,7 +163,7 @@ app.post('/api/chat', async (req, res) => {
     // Memoria de la conversación: se envían el inicio (saludo, primer mensaje y primera
     // respuesta, donde suele quedar la ruta de pasos) y los mensajes más recientes.
     // De la parte omitida se conservan las preguntas ya hechas, para que no se repitan.
-    const VENTANA_RECIENTE = 24;
+    const VENTANA_RECIENTE = 60;
     let slicedMessages = [...messages];
     let notaMemoria = '';
     if (slicedMessages.length > VENTANA_RECIENTE + 3) {
@@ -254,95 +199,92 @@ app.post('/api/chat', async (req, res) => {
       : `FECHA DE HOY: ${fechaHoy}. ${avisoFecha}`;
 
     // ===== Entrenador Saber 11: pregunta activa, páginas del cuadernillo y clave oficial =====
-let contextoIcfes = '';
-const partesIcfes: any[] = [];
-let registroIcfes = '';
-let resultadoIcfes: { id: string; clave: string; correcta: boolean; area: string } | null = null;
-// El tutor y el entrenador razonan un poco más (cálculos, lectura de gráficas y páginas del cuadernillo)
-let razonarMas = modeKey === 'tutor';
-  let rapido = false; // pistas y conversación del entrenador: razonamiento mínimo para responder más rápido
-if (modeKey === 'icfes') {
-  const ic = ((req.body as any)?.icfes || {}) as { id?: string; accion?: string; respuesta?: string };
-  const pregunta = buscarPregunta(String(ic.id || ''));
-  if (!pregunta) return res.status(400).json({ error: 'Primero elige un área para recibir una pregunta.' });
-  const accion = ['pista', 'responder', 'conversar'].includes(String(ic.accion)) ? String(ic.accion) : 'conversar';
-  const respuesta = String(ic.respuesta || '').toUpperCase().slice(0, 1);
-  if (accion === 'responder' && !pregunta.opciones.includes(respuesta)) {
-    return res.status(400).json({ error: 'Elige una de las opciones de respuesta.' });
-  }
-  const respuestaAnterior = [...(messages as any[])]
-    .reverse()
-    .find((m) => m?.icfes?.id === pregunta.id && m?.icfes?.accion === 'responder')?.icfes?.respuesta;
-  const respuestaEst = accion === 'responder' ? respuesta : String(respuestaAnterior || '').toUpperCase().slice(0, 1);
-  const yaRespondio = accion === 'responder' || pregunta.opciones.includes(respuestaEst);
-  const area = AREAS_ICFES[pregunta.cuadernillo.area];
-  // Razonamiento más profundo solo al corregir matemáticas y ciencias; lo demás responde más rápido
-    razonarMas = accion === 'responder' && ['matematicas', 'ciencias'].includes(pregunta.cuadernillo.area);
-    rapido = accion !== 'responder';
-  let ubic: Awaited<ReturnType<typeof paginasDePregunta>> | null = null;
-    let sinFiguras = false;
-  try {
-    ubic = await paginasDePregunta(pregunta);
-      // Solo se adjuntan las páginas que tienen figuras, tablas o fórmulas: el texto ya va transcrito (más rápido)
-      const contAdj = await contenidoDePregunta(pregunta).catch(() => null);
-      sinFiguras = !!contAdj;
-      const paginasRecorte: number[] | null = contAdj
-        ? [...new Set([...(contAdj.contexto?.bloques || []), ...contAdj.enunciado, ...(contAdj.opciones || []).flatMap((o: any) => o.bloques), ...(contAdj.recorteOpciones || [])].filter((b: any) => b.tipo === 'recorte').map((b: any) => b.pagina as number))]
-        : null;
-    for (const idx of paginasRecorte ? paginasRecorte.slice(-3) : ubic.paginas.slice(-3)) {
-      const pdf = await pdfDePagina(pregunta.cuadernillo, idx);
-      partesIcfes.push({ inlineData: { mimeType: 'application/pdf', data: Buffer.from(pdf).toString('base64') } });
+    let contextoIcfes = '';
+    const partesIcfes: any[] = [];
+    let registroIcfes = '';
+    let resultadoIcfes: { id: string; clave: string; correcta: boolean; area: string } | null = null;
+    let razonarIcfes = false; // retroalimentación del entrenador ICFES (accion === 'responder')
+    let ligeroIcfes = false; // pistas y conversación del ICFES: gemini-flash-lite-latest con MINIMAL
+    if (modeKey === 'icfes') {
+      const ic = ((req.body as any)?.icfes || {}) as { id?: string; accion?: string; respuesta?: string };
+      const pregunta = buscarPregunta(String(ic.id || ''));
+      if (!pregunta) return res.status(400).json({ error: 'Primero elige un área para recibir una pregunta.' });
+      const accion = ['pista', 'responder', 'conversar'].includes(String(ic.accion)) ? String(ic.accion) : 'conversar';
+      const respuesta = String(ic.respuesta || '').toUpperCase().slice(0, 1);
+      if (accion === 'responder' && !pregunta.opciones.includes(respuesta)) {
+        return res.status(400).json({ error: 'Elige una de las opciones de respuesta.' });
+      }
+      const respuestaAnterior = [...(messages as any[])]
+        .reverse()
+        .find((m) => m?.icfes?.id === pregunta.id && m?.icfes?.accion === 'responder')?.icfes?.respuesta;
+      const respuestaEst = accion === 'responder' ? respuesta : String(respuestaAnterior || '').toUpperCase().slice(0, 1);
+      const yaRespondio = accion === 'responder' || pregunta.opciones.includes(respuestaEst);
+      const area = AREAS_ICFES[pregunta.cuadernillo.area];
+      razonarIcfes = accion === 'responder';
+      ligeroIcfes = accion === 'pista' || accion === 'conversar';
+      let ubic: Awaited<ReturnType<typeof paginasDePregunta>> | null = null;
+      let sinFiguras = false;
+      try {
+        ubic = await paginasDePregunta(pregunta);
+        // Solo se adjuntan las páginas que tienen figuras, tablas o fórmulas: el texto ya va transcrito (más rápido)
+        const contAdj = await contenidoDePregunta(pregunta).catch(() => null);
+        sinFiguras = !!contAdj;
+        const paginasRecorte: number[] | null = contAdj
+          ? [...new Set([...(contAdj.contexto?.bloques || []), ...contAdj.enunciado, ...(contAdj.opciones || []).flatMap((o: any) => o.bloques), ...(contAdj.recorteOpciones || [])].filter((b: any) => b.tipo === 'recorte').map((b: any) => b.pagina as number))]
+          : null;
+        for (const idx of paginasRecorte ? paginasRecorte.slice(-3) : ubic.paginas.slice(-3)) {
+          const pdf = await pdfDePagina(pregunta.cuadernillo, idx);
+          partesIcfes.push({ inlineData: { mimeType: 'application/pdf', data: Buffer.from(pdf).toString('base64') } });
+        }
+      } catch (e: any) {
+        console.log('[ICFES] No se pudieron adjuntar las páginas:', e?.message || e);
+      }
+      // Texto de la pregunta tal como lo ve el estudiante (lectura, enunciado y opciones)
+      let textoPregunta = '';
+      try {
+        const cont = await contenidoDePregunta(pregunta);
+        if (cont) textoPregunta = `El estudiante ve la pregunta así (texto extraído del cuadernillo; las figuras, tablas y fórmulas las ve recortadas tal como están en la página adjunta):\n"""\n${contenidoComoTexto(cont)}\n"""\n`;
+      } catch {}
+      const examen = pregunta.cuadernillo.examenes[pregunta.examen]?.nombre;
+      const ubicTexto =
+        ubic && partesIcfes.length
+          ? (partesIcfes.length > 1
+              ? `Te adjunto ${partesIcfes.length} páginas del cuadernillo: la primera trae el texto o la situación que comparten varias preguntas y la pregunta ${pregunta.numero} está en la última, `
+              : `Te adjunto la página del cuadernillo donde está la pregunta ${pregunta.numero}, `) +
+            `más o menos al ${Math.round((ubic.y || 0) * 100)} % de la altura de la página. La página puede tener otras preguntas: ocúpate SOLO de la pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''}.`
+          : sinFiguras
+              ? 'La pregunta está transcrita completa más abajo, tal como la ve el estudiante (no tiene figuras, tablas ni fórmulas); no necesitas la página del cuadernillo.'
+              : 'No pude adjuntar la página de la pregunta: dile al estudiante que en este momento no puedes verla y pídele que intente con otra pregunta.';
+      contextoIcfes =
+        `\n\nPREGUNTA ACTIVA DEL ENTRENADOR: pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''} — ${pregunta.cuadernillo.titulo}. Área: ${area?.nombre}. Opciones de respuesta: ${pregunta.opciones.join(', ')}.\n${ubicTexto}\n${textoPregunta}${area?.competencias || ''}\n` +
+        (yaRespondio
+          ? `CLAVE OFICIAL DEL ICFES: ${pregunta.clave}. Es la respuesta correcta según la tabla de respuestas del cuadernillo: no la discutas ni la cambies. Si tu análisis no coincide con ella, vuelve a leer la pregunta en la página: el error está en tu lectura.` +
+            (respuestaEst ? `\nRESPUESTA DEL ESTUDIANTE: ${respuestaEst} (${respuestaEst === pregunta.clave ? 'CORRECTA' : 'INCORRECTA'}).` : '')
+          : 'El estudiante TODAVÍA NO HA RESPONDIDO: no reveles cuál opción es la correcta, no la insinúes y no descartes opciones de forma que la delate.') +
+        `\nNUMERACIÓN: el estudiante ve esta pregunta con otra numeración (la de su práctica), así que no menciones el número que tiene en el cuadernillo; di «esta pregunta».\nACCIÓN SOLICITADA: ${
+          accion === 'responder'
+            ? 'B) RETROALIMENTAR LA RESPUESTA (usa la estructura indicada).'
+            : accion === 'pista'
+            ? 'A) DAR UNA PISTA DE ESTRATEGIA (sin revelar la respuesta).'
+            : 'C) CONVERSAR SOBRE ESTA PREGUNTA.'
+        }`;
+      registroIcfes = `ICFES ${pregunta.id} · ${accion}${respuestaEst ? ` · eligió ${respuestaEst} · clave ${pregunta.clave}` : ''}`;
+      if (accion === 'responder') {
+        resultadoIcfes = { id: pregunta.id, clave: pregunta.clave, correcta: respuesta === pregunta.clave, area: pregunta.cuadernillo.area };
+      }
     }
-  } catch (e: any) {
-    console.log('[ICFES] No se pudieron adjuntar las páginas:', e?.message || e);
-  }
-  // Texto de la pregunta tal como lo ve el estudiante (lectura, enunciado y opciones)
-    let textoPregunta = '';
-    try {
-      const cont = await contenidoDePregunta(pregunta);
-      if (cont) textoPregunta = `El estudiante ve la pregunta así (texto extraído del cuadernillo; las figuras, tablas y fórmulas las ve recortadas tal como están en la página adjunta):\n"""\n${contenidoComoTexto(cont)}\n"""\n`;
-    } catch {}
-    const examen = pregunta.cuadernillo.examenes[pregunta.examen]?.nombre;
-  const ubicTexto =
-    ubic && partesIcfes.length
-      ? (partesIcfes.length > 1
-          ? `Te adjunto ${partesIcfes.length} páginas del cuadernillo: la primera trae el texto o la situación que comparten varias preguntas y la pregunta ${pregunta.numero} está en la última, `
-          : `Te adjunto la página del cuadernillo donde está la pregunta ${pregunta.numero}, `) +
-        `más o menos al ${Math.round((ubic.y || 0) * 100)} % de la altura de la página. La página puede tener otras preguntas: ocúpate SOLO de la pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''}.`
-      : sinFiguras
-          ? 'La pregunta está transcrita completa más abajo, tal como la ve el estudiante (no tiene figuras, tablas ni fórmulas); no necesitas la página del cuadernillo.'
-          : 'No pude adjuntar la página de la pregunta: dile al estudiante que en este momento no puedes verla y pídele que intente con otra pregunta.';
-  contextoIcfes =
-    `\n\nPREGUNTA ACTIVA DEL ENTRENADOR: pregunta ${pregunta.numero}${examen ? ` del ${examen}` : ''} — ${pregunta.cuadernillo.titulo}. Área: ${area?.nombre}. Opciones de respuesta: ${pregunta.opciones.join(', ')}.\n${ubicTexto}\n${textoPregunta}${area?.competencias || ''}\n` +
-    (yaRespondio
-      ? `CLAVE OFICIAL DEL ICFES: ${pregunta.clave}. Es la respuesta correcta según la tabla de respuestas del cuadernillo: no la discutas ni la cambies. Si tu análisis no coincide con ella, vuelve a leer la pregunta en la página: el error está en tu lectura.` +
-        (respuestaEst ? `\nRESPUESTA DEL ESTUDIANTE: ${respuestaEst} (${respuestaEst === pregunta.clave ? 'CORRECTA' : 'INCORRECTA'}).` : '')
-      : 'El estudiante TODAVÍA NO HA RESPONDIDO: no reveles cuál opción es la correcta, no la insinúes y no descartes opciones de forma que la delate.') +
-    `\nNUMERACIÓN: el estudiante ve esta pregunta con otra numeración (la de su práctica), así que no menciones el número que tiene en el cuadernillo; di «esta pregunta».\nACCIÓN SOLICITADA: ${
-      accion === 'responder'
-        ? 'B) RETROALIMENTAR LA RESPUESTA (usa la estructura indicada).'
-        : accion === 'pista'
-        ? 'A) DAR UNA PISTA DE ESTRATEGIA (sin revelar la respuesta).'
-        : 'C) CONVERSAR SOBRE ESTA PREGUNTA.'
-    }`;
-  registroIcfes = `ICFES ${pregunta.id} · ${accion}${respuestaEst ? ` · eligió ${respuestaEst} · clave ${pregunta.clave}` : ''}`;
-  if (accion === 'responder') {
-    resultadoIcfes = { id: pregunta.id, clave: pregunta.clave, correcta: respuesta === pregunta.clave, area: pregunta.cuadernillo.area };
-  }
-}
 
-const reglaMatematicas = `FÓRMULAS Y MATEMÁTICAS: Para fórmulas, usa siempre la notación $...$ de LaTeX bien formada (sin escapar dobles barras) y $$...$$ para fórmulas en bloque. Cuando sea sencillo, prefiere símbolos Unicode legibles (√76, 7² = 49, ×, ÷) dentro del texto normal.`;
+    const reglaMatematicas = `FÓRMULAS Y MATEMÁTICAS: Para fórmulas, usa siempre la notación $...$ de LaTeX bien formada (sin escapar dobles barras) y $$...$$ para fórmulas en bloque. Cuando sea sencillo, prefiere símbolos Unicode legibles (√76, 7² = 49, ×, ÷) dentro del texto normal.`;
 
-    const systemInstruction = `${AGENTE.parametros}
-
-${fechaLinea}
+    // Bloque fijo al inicio (sin cambios entre turnos) para aprovechar el caché implícito de Gemini
+    const bloqueFijo = `${AGENTE.parametros}
 
 MODO ACTUAL: ${modo.titulo}
 ${modo.instrucciones}
 
 ${reglaMatematicas}
 
-El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}${contextoIcfes}`;
+El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
 
     // Convert messages to Gemini API format
     const contents = slicedMessages.map((msg) => {
@@ -385,50 +327,102 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}${notaMemoria}${co
       };
     });
 
-      // Entrenador Saber 11: las páginas del cuadernillo acompañan el último mensaje del estudiante
-if (partesIcfes.length) {
-  const ultimoUsuario: any = [...contents].reverse().find((c: any) => c.role === 'user');
-  if (ultimoUsuario) ultimoUsuario.parts = [...partesIcfes, ...ultimoUsuario.parts];
-}
-
-// Preguntas de cálculo (matemáticas, física, química): se razona un poco más y con menos
-    // creatividad para no equivocarse en las operaciones. El resto sigue rápido (LOW).
-    const contextoReciente = slicedMessages.slice(-4).map((m: any) => m.text || '').join('\n');
-    const esCuantitativo =
-      /\d\s*[+\-*/^=×÷<>]\s*\d|[√π∫∑²³]|\\frac|\$|ecuaci|inecuaci|deriva|integral|fracci|porcentaje|ra[ií]z|potencia|logaritm|polinom|factoriz|trigonom|geometr|per[ií]metro|volumen|probabilidad|estad[ií]stic|velocidad|aceleraci|fuerza|energ[ií]a|estequiometr|molaridad|calcul|c[aá]lculo|resuelv|resolver|despej|f[oó]rmula|matem[aá]tic|[aá]lgebra|f[ií]sica|qu[ií]mica/i.test(
-        contextoReciente
-      );
-    const temperaturaBase = typeof modo.temperatura === 'number' ? modo.temperatura : 0.7;
-const razonar = esCuantitativo || razonarMas;
-
-    const config: any = {
-      systemInstruction: esCuantitativo
-        ? `${systemInstruction}\n\nESTA CONVERSACIÓN INCLUYE CÁLCULOS: aplica con especial cuidado las reglas de PRECISIÓN EN MATEMÁTICAS Y CIENCIAS.`
-        : systemInstruction,
-      temperature: razonar ? Math.min(temperaturaBase, 0.3) : temperaturaBase,
-      // El razonamiento interno también consume tokens de salida: se deja margen para no cortar respuestas
-      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + (razonar ? 3000 : 1500),
-      // El diálogo socrático sin cálculos es conversación breve: piensa lo mínimo para responder más rápido
-      thinkingConfig: { thinkingLevel: (razonar ? 'MEDIUM' : modeKey === 'socratico' || rapido ? 'MINIMAL' : 'LOW') as any },
-    };
-
-    if (modo.busqueda) {
-      config.tools = [{ googleSearch: {} }];
+    // Entrenador Saber 11: las páginas del cuadernillo acompañan el último mensaje del estudiante
+    if (partesIcfes.length) {
+      const ultimoUsuario: any = [...contents].reverse().find((c: any) => c.role === 'user');
+      if (ultimoUsuario) ultimoUsuario.parts = [...partesIcfes, ...ultimoUsuario.parts];
     }
 
-    const listaBase = modo.busqueda ? SEARCH_MODELS : CANDIDATE_MODELS;
-    const baseModelos = modelosDescubiertos.length ? modelosDescubiertos : listaBase;
-  // Pistas y conversación del entrenador: primero los modelos ligeros (responden en menos de un segundo)
-  const modelsToTry = rapido ? [...baseModelos.filter((x) => x.includes('-lite')), ...baseModelos.filter((x) => !x.includes('-lite'))] : baseModelos;
+    // esCuantitativo evalúa solo el último mensaje del estudiante (y, en el tutor, también si hay imagen adjunta)
+    // y exige matemática real: números con operadores, ecuaciones con =, unidades con números o símbolos matemáticos.
+    const ultimoMsgEst: any = [...slicedMessages].reverse().find((m: any) => m.role === 'user');
+    const textoUltimoEst = `${ultimoMsgEst?.text || ''}\n${ultimoMsgEst?.archivo?.texto || ''}`.replace(/https?:\/\/\S+/gi, ' ');
+    const tieneImagenTutor =
+      modeKey === 'tutor' && /^image\//i.test(String(ultimoMsgEst?.archivo?.mimeType || ''));
+    const patronMatematicaReal =
+      /\d\s*[+\-*/^×÷<>]\s*[\da-zA-Z(]|\d\s*[a-zA-Z]\s*[+\-*/^=×÷<>]|[a-zA-Z0-9)]\s*=\s*[-+a-zA-Z0-9(√]|\d+(?:[.,]\d+)?\s*(?:m\/s(?:²|\^2)?|km\/h|kg|g\b|mg|mol|cm|mm|km|m\b|s\b|N\b|J\b|W\b|Pa\b|Hz\b|V\b|A\b|Ω|°C|K\b|mL\b|L\b|atm\b)|[√²³π∫∑±]|\\(?:frac|sqrt|cdot|times)/;
+    const esCuantitativo =
+      modeKey !== 'icfes' && (tieneImagenTutor || patronMatematicaReal.test(textoUltimoEst));
+
+    const llevaBusqueda = Boolean(modo.busqueda && modeKey !== 'icfes');
+    const tutorConCalculos = modeKey === 'tutor' && esCuantitativo;
+    // En socratico siempre se usa LOW. MEDIUM queda solo para el tutor con cálculos reales y la retroalimentación del ICFES.
+    // Cuando una solicitud lleva googleSearch, se usa LOW salvo en el tutor con cálculos.
+    const usarMedium = tutorConCalculos || (!llevaBusqueda && razonarIcfes);
+    const razonar = usarMedium || modeKey === 'tutor';
+    const temperaturaBase = typeof modo.temperatura === 'number' ? modo.temperatura : 0.7;
+
+    const notaCalculos = esCuantitativo
+      ? '\n\nESTA CONVERSACIÓN INCLUYE CÁLCULOS: aplica con especial cuidado las reglas de PRECISIÓN EN MATEMÁTICAS Y CIENCIAS.'
+      : '';
+
+    // Recordatorio que se retira solo (todos los modos menos icfes):
+    // Cuenta (a) mensajes del estudiante desde su última [Verificación externa] (o desde el inicio)
+    // y (b) total de verificaciones externas en la sesión.
+    const mensajesEst = messages.filter((m) => m.role === 'user');
+    let totalVerificaciones = 0;
+    let mensajesSinVerificar = 0;
+    for (const m of mensajesEst) {
+      if (String(m.text || '').trim().startsWith('[Verificación externa]')) {
+        totalVerificaciones++;
+        mensajesSinVerificar = 0;
+      } else {
+        mensajesSinVerificar++;
+      }
+    }
+    const enviarRecordatorioVerificacion =
+      modeKey !== 'icfes' &&
+      totalVerificaciones < 2 &&
+      mensajesSinVerificar >= 8 &&
+      mensajesSinVerificar % 8 === 0;
+    const notaRecordatorio = enviarRecordatorioVerificacion
+      ? '\n\nRECORDATORIO DE VERIFICACIÓN: al final de esta respuesta, en una sola frase breve y sin regañar, invita al estudiante a comprobar en otra fuente un dato concreto de lo que han visto y a registrarlo con el botón «Lo verifiqué por fuera». Sugiere qué dato y qué tipo de fuente.'
+      : '';
+
+    // Bloque fijo al inicio + fecha de hoy y notas variables al final
+    const systemInstruction = `${bloqueFijo}\n\n${fechaLinea}${notaCalculos}${notaMemoria}${contextoIcfes}${notaRecordatorio}`;
+
+    const configBase: any = {
+      systemInstruction,
+      temperature: razonar ? Math.min(temperaturaBase, 0.3) : temperaturaBase,
+      // El razonamiento interno también consume tokens de salida: se deja margen para no cortar respuestas
+      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + (usarMedium ? 3000 : 1500),
+    };
+
+    if (llevaBusqueda) {
+      configBase.tools = [{ googleSearch: {} }];
+    }
+
+    // Nivel de razonamiento: MEDIUM solo en el tutor con cálculos reales o en la retroalimentación del ICFES,
+    // MINIMAL en pistas y conversación del ICFES, y LOW en todo lo demás (incluido socratico y solicitudes con googleSearch salvo tutor con cálculos).
+    const nivelDeseado: 'MINIMAL' | 'LOW' | 'MEDIUM' = ligeroIcfes ? 'MINIMAL' : usarMedium ? 'MEDIUM' : 'LOW';
+    const forzarLowPorModelo = new Set<string>();
+    const configPara = (nivel: 'MINIMAL' | 'LOW' | 'MEDIUM'): any => ({
+      ...configBase,
+      thinkingConfig: {
+        thinkingLevel: nivel as any,
+      },
+    });
+
+    // Si gemini-flash-latest falló o se demoró en los últimos 2 minutos, va directo al respaldo gemini-flash-lite-latest sin esperar 12 s
+    const flashEnPausa = Date.now() < flashLentoHasta;
+    const modelsToTry = ligeroIcfes
+      ? ['gemini-flash-lite-latest', 'gemini-flash-latest']
+      : flashEnPausa
+      ? ['gemini-flash-lite-latest']
+      : ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+    if (flashEnPausa && !ligeroIcfes) {
+      console.log(`[Respaldo directo] gemini-flash-latest en pausa por lentitud/fallo reciente (${Math.ceil((flashLentoHasta - Date.now()) / 1000)} s restantes); usando gemini-flash-lite-latest con LOW`);
+    }
 
     let lastError: any = null;
     let replyText: string | null = null;
-    let modeloUsado = 'respaldo sin búsqueda';
+    let modeloUsado = modelsToTry[0];
     let fuentes: Array<{ titulo: string; url: string }> = [];
     let had429 = false;
 
     // ===== Respuesta en vivo (streaming): el texto llega al estudiante mientras se genera =====
-    const quiereStream = Boolean((req.body as any)?.stream);
+    const quiereStream = (req.body as any)?.stream !== false;
     let streamIniciado = false;
     let textoEnviado = false;
     const enviarEvento = (evento: Record<string, unknown>) => {
@@ -442,82 +436,102 @@ const razonar = esCuantitativo || razonarMas;
       }
       res.write(JSON.stringify(evento) + '\n');
     };
+    const MENSAJE_NO_DISPONIBLE =
+      'El agente no está disponible en este momento. Intenta de nuevo en un minuto; si sigue fallando, avisa al docente.';
     const responderError = (status: number, error: string) => {
-      if (streamIniciado) {
-        enviarEvento({ t: 'error', error });
-        return res.end();
+      try {
+        if (streamIniciado || res.headersSent) {
+          enviarEvento({ t: 'error', error });
+          return res.end();
+        }
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.status(status).json({ error });
+      } catch {
+        try {
+          return res.end();
+        } catch {
+          return;
+        }
       }
-      return res.status(status).json({ error });
     };
-    // Con streaming devuelve un objeto con la misma forma que generateContent (text, candidates, modelVersion)
-    const generar = async (model: string, cfg: any): Promise<any> => {
-      // Si un modelo tarda demasiado en empezar a responder (saturado o casi sin cupo), se corta y se pasa al siguiente
+    // Con streaming devuelve un objeto con la misma forma que generateContent (text, candidates, groundingChunks, modelVersion)
+    const generar = async (model: string, cfg: any, nivelLog: string): Promise<any> => {
+      // Si el primer texto no llega en 12 s, se corta y pasa al modelo de respaldo (gemini-flash-lite-latest con LOW)
       const controlador = new AbortController();
-      // Si un modelo no empieza a responder pronto, se pasa al siguiente (antes se esperaban hasta 15 s)
-      const limiteMs = quiereStream ? (razonar ? 25_000 : rapido ? 6_000 : 10_000) : (razonar ? 40_000 : 20_000);
+      const limiteMs = 12_000;
       const temporizador = setTimeout(() => controlador.abort(), limiteMs);
       const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
+      const tInicioFlujo = Date.now();
       try {
-        if (!quiereStream) return await ai.models.generateContent({ model, contents, config: cfgConCorte });
-        const tInicioFlujo = Date.now();
+        if (!quiereStream) {
+          const r = await ai.models.generateContent({ model, contents, config: cfgConCorte });
+          clearTimeout(temporizador);
+          const msPrimerTexto = Date.now() - tInicioFlujo;
+          console.log(`[Primer texto] ${(r as any)?.modelVersion || model} (${nivelLog}) en ${msPrimerTexto} ms (modo: ${modeKey})`);
+          registrarTiempo({ modo: modeKey, modelo: (r as any)?.modelVersion || model, primerTextoMs: msPrimerTexto, razonar: usarMedium, adjuntos: partesIcfes.length });
+          return r;
+        }
         const flujo = await ai.models.generateContentStream({ model, contents, config: cfgConCorte });
         let texto = '';
         let ultimo: any = null;
+        let versionModelo = '';
+        let primerTextoRecibido = false;
+        const chunksGrounding: any[] = [];
         for await (const parte of flujo) {
-          if (!ultimo) {
-            clearTimeout(temporizador);
-            console.log(`[Primer texto] ${model} en ${Date.now() - tInicioFlujo} ms`);
-            registrarTiempo({ modo: modeKey, modelo: model, primerTextoMs: Date.now() - tInicioFlujo, razonar, adjuntos: partesIcfes.length });
-          }
+          if ((parte as any)?.modelVersion) versionModelo = (parte as any).modelVersion;
+          const cGrounding = (parte as any)?.candidates?.[0]?.groundingMetadata?.groundingChunks;
+          if (Array.isArray(cGrounding)) chunksGrounding.push(...cGrounding);
           ultimo = parte;
           const delta = parte.text || '';
           if (delta) {
+            if (!primerTextoRecibido) {
+              primerTextoRecibido = true;
+              clearTimeout(temporizador);
+              const msPrimerTexto = Date.now() - tInicioFlujo;
+              console.log(`[Primer texto] ${(parte as any)?.modelVersion || model} (${nivelLog}) en ${msPrimerTexto} ms (modo: ${modeKey})`);
+              registrarTiempo({ modo: modeKey, modelo: (parte as any)?.modelVersion || model, primerTextoMs: msPrimerTexto, razonar: usarMedium, adjuntos: partesIcfes.length });
+            }
             if (!texto && textoEnviado) enviarEvento({ t: 'reinicio' });
             texto += delta;
             textoEnviado = true;
             enviarEvento({ t: 'delta', text: delta });
           }
         }
-        return { text: texto, candidates: ultimo?.candidates, modelVersion: ultimo?.modelVersion };
+        return {
+          text: texto,
+          candidates: ultimo?.candidates,
+          groundingChunks: chunksGrounding,
+          modelVersion: versionModelo || ultimo?.modelVersion || model,
+        };
       } finally {
         clearTimeout(temporizador);
       }
     };
 
-    // Attempt models with 429/503 fallback, 1.5s backoff, and 404 immediate skip
-    // Si todos los modelos chocan con el límite POR MINUTO, se espera a que se libere y se
-    // reintenta (hasta 2 veces): el estudiante solo ve los puntos de "escribiendo".
-    for (let ronda = 0; ronda < 3 && !replyText; ronda++) {
-      if (ronda > 0) {
-        const ahora = Date.now();
-        const esperas = modelsToTry
-          .map((mm) => (agotadoHasta.get(claveCupo(mm, !!modo.busqueda)) || 0) - ahora)
-          .filter((ms) => ms > 0);
-        const espera = esperas.length ? Math.min(...esperas) : 0;
-        if (espera <= 0 || espera > 35_000) break;
-        console.log(`[Cupo] Límite por minuto: se espera ${Math.ceil(espera / 1000)} s y se reintenta`);
-        await new Promise((resolve) => setTimeout(resolve, espera + 300));
-      }
+    // Intento en cascada con un único reintento ante 429 o 503 (y reintento con LOW si el error 400 mencione el nivel de razonamiento)
+    let reintentado = false;
     for (let i = 0; i < modelsToTry.length; i++) {
       const model = modelsToTry[i];
-      if (estaAgotado(model, !!modo.busqueda)) {
-        console.log(`[Cupo] Saltando ${model}: sin cupo por ahora`);
-        had429 = true;
-        lastError = lastError || { status: 429, message: 'free_tier: cupo agotado (recordado por el servidor)' };
-        continue;
-      }
+      // En el modelo de respaldo (gemini-flash-lite-latest fuera de pistas ICFES, o i > 0) o si se forzó LOW, se usa siempre LOW
+      const esRespaldoLite = model === 'gemini-flash-lite-latest' && !ligeroIcfes;
+      const nivelActual: 'MINIMAL' | 'LOW' | 'MEDIUM' =
+        i > 0 || esRespaldoLite || forzarLowPorModelo.has(model) ? 'LOW' : nivelDeseado;
+      const config = configPara(nivelActual);
       try {
         const t0 = Date.now();
-        const response = await generar(model, config);
-        console.log(`[Tiempo] ${model} -> ${(response as any).modelVersion} en ${Date.now() - t0} ms (busqueda: ${!!modo.busqueda})`);
+        const response = await generar(model, config, nivelActual);
+        console.log(`[Tiempo] ${model} (${nivelActual}) -> ${(response as any).modelVersion || model} en ${Date.now() - t0} ms (busqueda: ${!!modo.busqueda})`);
 
         if (response.text) {
           replyText = response.text;
           modeloUsado = (response as any).modelVersion || model;
 
-          // Extract grounding sources if available
+          // Extract grounding sources if available (acumuladas en el stream o en el candidato final)
           const candidate = response.candidates?.[0];
-          const chunks = (candidate as any)?.groundingMetadata?.groundingChunks;
+          const chunks =
+            Array.isArray((response as any).groundingChunks) && (response as any).groundingChunks.length > 0
+              ? (response as any).groundingChunks
+              : (candidate as any)?.groundingMetadata?.groundingChunks;
           if (Array.isArray(chunks)) {
             const fuentesMap = new Map<string, string>();
             for (const chunk of chunks) {
@@ -536,74 +550,94 @@ const razonar = esCuantitativo || razonarMas;
         }
       } catch (err: any) {
         lastError = err;
-        // Modelo demasiado lento: se aparta 1 minuto y se pasa al siguiente sin esperar
+        // Si el primer texto no llega en 12 s, pasa al modelo de respaldo (gemini-flash-lite-latest con LOW) y recuerda por 2 min
         if (err?.name === 'AbortError' || /abort/i.test(String(err?.message || ''))) {
-          console.log(`[Lento] ${model} no empezó a responder a tiempo; se pasa al siguiente`);
+          if (model === 'gemini-flash-latest') {
+            flashLentoHasta = Date.now() + FLASH_PAUSA_MS;
+          }
+          console.log(`[Lento] ${model} (${nivelActual}) no entregó el primer texto en 12 s; pasando al respaldo con LOW (pausa de 2 min activada)`);
           registrarTiempo({ modo: modeKey, modelo: model, lento: true });
-          agotadoHasta.set(claveCupo(model, !!modo.busqueda), Date.now() + 5 * 60_000); // se aparta 5 minutos
           continue;
         }
-        let cupoLargo = false;
-        const status = err?.status || err?.statusCode || (typeof err?.message === 'string' && err.message.includes('429') ? 429 : (typeof err?.message === 'string' && err.message.includes('404') ? 404 : 500));
+        const msgErr = String(err?.message || '');
+        const status =
+          err?.status ||
+          err?.statusCode ||
+          (/\b401\b|UNAUTHENTICATED|API_KEY_INVALID|API key not valid/i.test(msgErr)
+            ? 401
+            : /\b403\b|PERMISSION_DENIED/i.test(msgErr)
+            ? 403
+            : /\b400\b|INVALID_ARGUMENT/i.test(msgErr)
+            ? 400
+            : /\b429\b|RESOURCE_EXHAUSTED/i.test(msgErr)
+            ? 429
+            : /\b404\b|NOT_FOUND/i.test(msgErr)
+            ? 404
+            : /\b503\b|UNAVAILABLE/i.test(msgErr)
+            ? 503
+            : 500);
 
-        // Diagnóstico de errores: console.log del mensaje completo del error (err.message y err.status)
         console.log(`[Error en modelo ${model}] err.status: ${status}, err.message: ${err?.message}`);
 
-        if (status === 429 || (typeof err?.message === 'string' && err.message.includes('429'))) {
-          had429 = true;
-          cupoLargo = marcarAgotado(model, !!modo.busqueda, String(err?.message || '')) >= 60_000;
+        // Ante 401 o 403 (key inválida o sin permiso) no reintentes ni cambies de modelo
+        if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED/i.test(msgErr)) {
+          console.error('[Key] La API key no es válida o no tiene permiso');
+          return responderError(status === 403 ? 403 : 401, MENSAJE_NO_DISPONIBLE);
         }
 
-        // Si un modelo responde 404 (no existe), pasa al siguiente sin esperar
-        if (status === 404 || (typeof err?.message === 'string' && err.message.includes('404'))) {
-          console.log(`Modelo ${model} no existe (404). Pasando al siguiente modelo sin esperar...`);
+        if (status === 429 || msgErr.includes('429')) {
+          had429 = true;
+        }
+
+        if (status === 404 || msgErr.includes('404')) {
+          if (model === 'gemini-flash-latest') {
+            flashLentoHasta = Date.now() + FLASH_PAUSA_MS;
+          }
+          console.log(`Modelo ${model} no existe (404). Pasando al siguiente modelo...`);
           continue;
         }
 
-        // Si el modelo no acepta el nivel de razonamiento MINIMAL, se reintenta con LOW en el mismo modelo
-        if (status === 400 && /thinking/i.test(String(err?.message || '')) && config.thinkingConfig) {
-          // MINIMAL no soportado → LOW; un modelo que no admite niveles de razonamiento → sin esa opción
-          if (config.thinkingConfig.thinkingLevel === 'MINIMAL') config.thinkingConfig = { thinkingLevel: 'LOW' };
-          else delete config.thinkingConfig;
+        const isOverload = status === 429 || status === 503 || msgErr.includes('429') || msgErr.includes('503');
+
+        if (isOverload && !reintentado) {
+          reintentado = true;
+          console.log(`Esperando 1,5 s para un único reintento tras error ${status} en ${model}...`);
+          await new Promise((resolve) => setTimeout(resolve, 1500));
           i--;
           continue;
         }
 
-        const isOverload = status === 429 || status === 503 || (typeof err?.message === 'string' && (err.message.includes('429') || err.message.includes('503')));
-
-        // If error is NOT 429 or 503, do NOT retry
-        // Otros errores de un modelo concreto: se intenta con el siguiente en vez de fallar
-        if (!isOverload) {
-          console.error(`Error con el modelo ${model}; se intenta con el siguiente:`, err?.message || err);
+        // Solo reintenta con thinkingLevel LOW cuando el error 400 mencione el nivel de razonamiento
+        if (
+          status === 400 &&
+          /thinking|reasoning|razonamiento/i.test(msgErr) &&
+          nivelActual !== 'LOW' &&
+          !forzarLowPorModelo.has(model)
+        ) {
+          forzarLowPorModelo.add(model);
+          console.log(`Nivel de razonamiento ${nivelActual} no aceptado en ${model}; reintentando con LOW...`);
+          i--;
           continue;
         }
 
-        // If there is another model to try, wait 1.5s backoff
-        if (i < modelsToTry.length - 1 && !cupoLargo) {
-          console.log('Esperando 1,5 s antes de cambiar de modelo tras error 429/503...');
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (model === 'gemini-flash-latest') {
+          flashLentoHasta = Date.now() + FLASH_PAUSA_MS;
         }
+        console.error(`Error con el modelo ${model}; se intenta con el siguiente:`, err?.message || err);
       }
     }
 
-    }
-
-    // Si todos fallan por 429 en un modo con búsqueda, haz un último intento SIN la herramienta googleSearch con 'gemini-flash-latest'
+    // Si todos fallan por 429 en un modo con búsqueda, haz un último intento SIN la herramienta googleSearch
     if (!replyText && modo.busqueda && (had429 || lastError?.status === 429 || (typeof lastError?.message === 'string' && lastError.message.includes('429')))) {
-      console.log('Todos los modelos con búsqueda fallaron por 429. Intentando fallback SIN googleSearch...');
+      console.log('Los modelos con búsqueda fallaron por 429. Intentando fallback SIN googleSearch...');
       const fallbackModels = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
       for (const fbModel of fallbackModels) {
-        if (estaAgotado(fbModel, false)) {
-          console.log(`[Cupo] Saltando ${fbModel} (respaldo sin búsqueda)`);
-          continue;
-        }
         try {
           const fallbackConfig: any = {
             systemInstruction: systemInstruction + "\n\nIMPORTANTE: en esta respuesta NO tienes acceso a la búsqueda en Google. No digas que buscaste ni que consultaste fuentes en línea. Responde solo con lo que sabes, aclara que puede estar desactualizado y, si es una verificación, escribe «Veredicto provisional» (o 'Sin evidencia suficiente'), cambia el título «Qué dicen las fuentes» por «Lo que se sabe (sin fuentes consultadas)» y no atribuyas datos a fuentes que no consultaste; en «Lectura lateral» indica dónde confirmarlo. No escribas ningún aviso ni nota sobre la falta de búsqueda: la aplicación ya muestra ese aviso al estudiante.",
             temperature: typeof modo.temperatura === 'number' ? modo.temperatura : 0.7,
-            // + 1500: margen para el razonamiento interno, que también consume tokens de salida y cortaba las respuestas
-      maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
-            thinkingConfig: { thinkingLevel: 'LOW' as any }, // más rápido: el modelo piensa menos antes de responder
+            maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
+            thinkingConfig: { thinkingLevel: 'LOW' as any },
           };
 
           const fallbackResponse = await ai.models.generateContent({
@@ -614,6 +648,7 @@ const razonar = esCuantitativo || razonarMas;
 
           if (fallbackResponse.text) {
             replyText = `_Aviso: la búsqueda en Google no estuvo disponible en este momento._\n\n${fallbackResponse.text}`;
+            modeloUsado = (fallbackResponse as any).modelVersion || fbModel;
             fuentes = [];
             break;
           }
@@ -621,22 +656,27 @@ const razonar = esCuantitativo || razonarMas;
           lastError = fallbackErr;
           const fallbackStatus = fallbackErr?.status || fallbackErr?.statusCode || (typeof fallbackErr?.message === 'string' && fallbackErr.message.includes('429') ? 429 : 500);
           console.log(`[Error en fallback ${fbModel}] err.status: ${fallbackStatus}, err.message: ${fallbackErr?.message}`);
-        if (fallbackStatus === 429) marcarAgotado(fbModel, false, String(fallbackErr?.message || ''));
         }
       }
     }
 
     if (replyText) {
       // Registro de la interacción en Google Sheets (no bloquea la respuesta)
-      const mensajesEst = messages.filter((m) => m.role === 'user');
       const ultimoEst = mensajesEst[mensajesEst.length - 1];
+      const textoUltimo = ultimoEst?.text || '';
+      const sufijoModo =
+        (textoUltimo.startsWith('[Verificación externa]')
+          ? ' · verificación'
+          : textoUltimo.includes('[Mi idea previa]')
+          ? ' · idea previa'
+          : '') + (enviarRecordatorioVerificacion ? ' · recordatorio' : '');
       registrarInteraccion({
         fecha: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
         estudiante: (estudiante || '').slice(0, 120),
         sesion: sesion || '',
-        modo: modo.titulo,
+        modo: `${modo.titulo}${sufijoModo}`,
         turno: mensajesEst.length,
-        mensaje: ultimoEst?.text || '',
+        mensaje: textoUltimo,
         adjunto: registroIcfes || ultimoEst?.archivo?.nombre || '',
         respuesta: replyText,
         fuentes: fuentes.map((f) => f.url).join('\n'),
@@ -651,27 +691,18 @@ const razonar = esCuantitativo || razonarMas;
     }
 
     const is429 = lastError?.status === 429 || (typeof lastError?.message === 'string' && lastError.message.includes('429'));
-    if (is429) {
-      // Solo es «cupo de hoy» si TODOS los modelos quedaron bloqueados por más de 5 minutos (límite diario)
-      const cupoDiario = modelsToTry.every((mm) => ((agotadoHasta.get(claveCupo(mm, !!modo.busqueda)) || 0) - Date.now()) > 5 * 60_000);
-      return responderError(429, cupoDiario
-          ? 'Se agotó el cupo gratuito de consultas de hoy. El docente debe activar la facturación en Google AI Studio o esperar a que se renueve el cupo.'
-          : 'Hay muchas consultas en este momento. Espera unos segundos y vuelve a intentarlo.');
-    }
-
-    return responderError(503, 'El servicio está experimentando alta demanda. Por favor reintenta en unos instantes.');
+    return responderError(is429 ? 429 : 503, MENSAJE_NO_DISPONIBLE);
   } catch (error: any) {
     console.error('Error al procesar solicitud de chat:', error);
+    const msg = 'El agente no está disponible en este momento. Intenta de nuevo en un minuto; si sigue fallando, avisa al docente.';
     if (res.headersSent) {
       try {
-        res.write(JSON.stringify({ t: 'error', error: 'Se interrumpió la respuesta. Intenta de nuevo.' }) + '\n');
+        res.write(JSON.stringify({ t: 'error', error: msg }) + '\n');
       } catch {}
       return res.end();
     }
-    return res.status(500).json({
-      error: 'Hubo un inconveniente al conectar con el interlocutor. Por favor intenta de nuevo.',
-
-    });
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(500).json({ error: msg });
   }
 });
 
@@ -696,7 +727,7 @@ app.post('/api/cierre', (req, res) => {
       sesion: texto(b.sesion, 60),
       modo: `${modo ? modo.titulo : modeKey} — CIERRE`,
       turno: Number(b.turnos) || 0,
-      mensaje: `Qué aprendí: ${texto(b.aprendi)}\nQué habría hecho sin ayuda: ${texto(b.sinAyuda) || '—'}\nQué me quedó dudoso: ${texto(b.dudas) || '—'}\nConfianza para explicarlo sin ayuda (1 a 5): ${confianza}`,
+      mensaje: `Qué aprendí: ${texto(b.aprendi)}\nQué comprobé fuera de la IA: ${texto(b.comprobe) || '—'}\nQué habría hecho sin ayuda: ${texto(b.sinAyuda) || '—'}\nQué me quedó dudoso: ${texto(b.dudas) || '—'}\nConfianza para explicarlo sin ayuda (1 a 5): ${confianza}`,
       adjunto: '',
       respuesta: '',
       fuentes: '',
@@ -852,7 +883,7 @@ app.get('/api/icfes/contenido/:id', async (req, res) => {
 
 // Prueba de velocidad de cada modelo (para el docente): /api/diagnostico-ia/probar
 app.get('/api/diagnostico-ia/probar', async (_req, res) => {
-  const lista = modelosDescubiertos.length ? modelosDescubiertos : CANDIDATE_MODELS;
+  const lista = CANDIDATE_MODELS;
   const resultados = await Promise.all(
     lista.map(async (model) => {
       const t0 = Date.now();
@@ -878,7 +909,7 @@ app.get('/api/diagnostico-ia/probar', async (_req, res) => {
 });
 
 app.get('/api/diagnostico-ia', (_req, res) => {
-  res.json({ cascada: modelosDescubiertos.length ? modelosDescubiertos : CANDIDATE_MODELS, tiempos: tiemposIA });
+  res.json({ cascada: CANDIDATE_MODELS, tiempos: tiemposIA });
 });
 
 app.get('/api/icfes/estado', (req, res) => {
@@ -901,6 +932,20 @@ app.get('/api/parametros', (_req, res) => {
       adjuntos: Boolean(modo.adjuntos),
     })),
   });
+});
+
+// Manejador de errores para /api: evita que cualquier fallo pase al manejador HTML por defecto de Vite/Express
+app.use('/api', (err: any, _req: any, res: any, _next: any) => {
+  console.error('[API Error]', err?.message || err);
+  const msg = 'El agente no está disponible en este momento. Intenta de nuevo en un minuto; si sigue fallando, avisa al docente.';
+  if (res.headersSent) {
+    try {
+      res.write(JSON.stringify({ t: 'error', error: msg }) + '\n');
+    } catch {}
+    return res.end();
+  }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return res.status(500).json({ error: msg });
 });
 
 async function startServer() {

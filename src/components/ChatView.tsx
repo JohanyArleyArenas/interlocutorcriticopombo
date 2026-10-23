@@ -80,8 +80,11 @@ const EJEMPLOS_MODO: Record<string, string[]> = {
   tutor: ['No entiendo cómo despejar x en 3x + 5 = 20', 'Un carro pasa de 0 a 20 m/s en 4 s, ¿cómo hallo la aceleración?'],
 };
 
-// Modos que muestran el botón «Terminar» (cierre con reflexión: todos excepto icfes)
+// Modos que muestran el botón «Terminar» y «Lo verifiqué por fuera» (todos excepto icfes)
 const MODOS_CON_CIERRE = ['socratico', 'explorar', 'argumento', 'verificar', 'auditar', 'escrito', 'tutor'];
+
+// Modos que piden «Primero tú» (idea previa obligatoria antes del primer mensaje)
+const MODOS_CON_IDEA_PREVIA = ['socratico', 'tutor', 'argumento', 'auditar'];
 
 export interface ChatArchivo {
   nombre: string;
@@ -203,14 +206,31 @@ if (clave === 'tutor') return base;
   const [cierreEstado, setCierreEstado] = useState<'editando' | 'enviando' | 'listo'>('editando');
   const [cierreError, setCierreError] = useState('');
   const [aprendi, setAprendi] = useState('');
+  const [comprobe, setComprobe] = useState('');
   const [sinAyuda, setSinAyuda] = useState('');
   const [dudas, setDudas] = useState('');
   const [confianza, setConfianza] = useState(0);
   const turnosEstudiante = messages.filter((m) => m.role === 'user').length;
 
+  // ===== Primero tú: idea previa antes del primer mensaje =====
+  const [ideaPrevia, setIdeaPrevia] = useState('');
+  const ideaPreviaRef = useRef<HTMLInputElement | null>(null);
+  const requiereIdeaPrevia = MODOS_CON_IDEA_PREVIA.includes(modeKey) && turnosEstudiante === 0;
+
+  // ===== Lo verifiqué por fuera: formulario breve de contrastación externa =====
+  const [verifAbierta, setVerifAbierta] = useState(false);
+  const [verifDato, setVerifDato] = useState('');
+  const [verifFuente, setVerifFuente] = useState('');
+  const [verifResultado, setVerifResultado] = useState<'Coincide' | 'No coincide' | 'Matiza' | ''>('');
+  const [verifError, setVerifError] = useState('');
+
   const enviarCierre = async () => {
     if (!aprendi.trim()) {
       setCierreError('Escribe qué aprendiste tú hoy.');
+      return;
+    }
+    if (!comprobe.trim()) {
+      setCierreError('Escribe qué comprobaste fuera de la IA hoy y dónde (o qué habrías podido comprobar).');
       return;
     }
     if (!sinAyuda.trim()) {
@@ -228,6 +248,7 @@ if (clave === 'tutor') return base;
           estudiante: estudiante || '',
           sesion: sesionRef.current,
           aprendi: aprendi.trim(),
+          comprobe: comprobe.trim(),
           sinAyuda: sinAyuda.trim(),
           dudas: dudas.trim(),
           confianza,
@@ -258,6 +279,7 @@ if (clave === 'tutor') return base;
       lineas.push(
         'MI REFLEXIÓN FINAL',
         `Qué aprendí: ${aprendi}`,
+        `Qué comprobé fuera de la IA: ${comprobe}`,
         `Qué habría hecho sin ayuda: ${sinAyuda}`,
         `Qué me quedó dudoso: ${dudas || '—'}`,
         `Confianza para explicarlo sin ayuda (1 a 5): ${confianza || '—'}`
@@ -474,6 +496,10 @@ const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; r
   forzadoArg && typeof forzadoArg.texto === 'string' ? forzadoArg : undefined;
     const trimmed = (f ? f.texto : inputText).trim();
     if ((!trimmed && !attachedFile && !f?.archivo) || isLoading || isProcessingFile || enviandoRef.current) return;
+    if (!f && requiereIdeaPrevia && !ideaPrevia.trim()) {
+      ideaPreviaRef.current?.focus();
+      return;
+    }
     enviandoRef.current = true;
 
     let userArchivo: ChatArchivo | undefined = f?.archivo;
@@ -487,10 +513,15 @@ const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; r
       };
     }
 
+    const textoConIdea =
+      !f && requiereIdeaPrevia && ideaPrevia.trim()
+        ? `[Mi idea previa]: ${ideaPrevia.trim()}${trimmed ? `\n\n${trimmed}` : ''}`
+        : trimmed;
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      text: trimmed,
+      text: textoConIdea,
       archivo: userArchivo,
       icfes: f ? f.icfes : esIcfes && preguntaActiva ? { id: preguntaActiva.id, accion: 'conversar' } : undefined,
       timestamp: Date.now(),
@@ -499,6 +530,7 @@ const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; r
     const nextMessages = [...(f?.reintento ? messages.slice(0, -1) : messages), userMessage];
     setMessages(nextMessages);
     if (!f) setInputText('');
+    if (!f) setIdeaPrevia('');
     if (!f) setAttachedFile(null);
     setErrorMessage(null);
     // En móvil se cierra el teclado al enviar para poder leer la respuesta
@@ -535,13 +567,21 @@ icfes: userMessage.icfes,
         }),
       });
 
+      const MENSAJE_NO_DISPONIBLE =
+        'El agente no está disponible en este momento. Intenta de nuevo en un minuto; si sigue fallando, avisa al docente.';
+
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || (res.status === 429
-          ? 'El tutor está atendiendo a muchas personas en este momento. Espera un minuto y vuelve a intentarlo.'
-          : res.status >= 500
-            ? 'El tutor tuvo un problema técnico. Intenta de nuevo en unos segundos.'
-            : `Error del servidor (${res.status})`));
+        const textoErr = await res.text().catch(() => '');
+        let errorMsg = '';
+        try {
+          const errorData = JSON.parse(textoErr);
+          if (errorData && typeof errorData.error === 'string') {
+            errorMsg = errorData.error;
+          }
+        } catch {
+          errorMsg = MENSAJE_NO_DISPONIBLE;
+        }
+        throw new Error(errorMsg || MENSAJE_NO_DISPONIBLE);
       }
 
       const tipo = res.headers.get('content-type') || '';
@@ -582,7 +622,12 @@ icfes: userMessage.icfes,
             pendiente = pendiente.slice(corte + 1);
             corte = pendiente.indexOf('\n');
             if (!linea) continue;
-            const evento = JSON.parse(linea);
+            let evento: any;
+            try {
+              evento = JSON.parse(linea);
+            } catch {
+              throw new Error(MENSAJE_NO_DISPONIBLE);
+            }
             if (evento.t === 'delta') {
               acumulado += evento.text || '';
               pintar(acumulado);
@@ -594,15 +639,21 @@ if (evento.icfes) aplicarResultadoIcfes(evento.icfes);
               pintar(acumulado, Array.isArray(evento.fuentes) ? evento.fuentes : []);
               terminado = true;
             } else if (evento.t === 'error') {
-              throw new Error(evento.error || 'Se interrumpió la respuesta. Intenta de nuevo.');
+              throw new Error(evento.error || MENSAJE_NO_DISPONIBLE);
             }
           }
         }
-        if (!creado) throw new Error('No llegó respuesta del interlocutor. Intenta de nuevo.');
+        if (!creado) throw new Error(MENSAJE_NO_DISPONIBLE);
       } else {
-        const data = await res.json();
-        const replyText = data.reply || '';
-        const fuentes = Array.isArray(data.fuentes) ? data.fuentes : [];
+        const rawText = await res.text().catch(() => '');
+        let data: any;
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          throw new Error(MENSAJE_NO_DISPONIBLE);
+        }
+        const replyText = data?.reply || '';
+        const fuentes = Array.isArray(data?.fuentes) ? data.fuentes : [];
   
         const agentMessage: ChatMessage = {
           id: `model-${Date.now()}`,
@@ -616,8 +667,14 @@ if (evento.icfes) aplicarResultadoIcfes(evento.icfes);
       }
     } catch (err: any) {
       console.error('Error al enviar mensaje:', err);
+      const msg = String(err?.message || '');
+      const esTecnicoOJson =
+        !msg ||
+        /unexpected token|is not valid json|<!doctype|syntaxerror|failed to fetch|networkerror|load failed/i.test(msg);
       setErrorMessage(
-        err.message || 'No se pudo obtener respuesta del interlocutor. Por favor intenta de nuevo.'
+        esTecnicoOJson
+          ? 'El agente no está disponible en este momento. Intenta de nuevo en un minuto; si sigue fallando, avisa al docente.'
+          : msg
       );
     } finally {
       enviandoRef.current = false;
@@ -787,24 +844,175 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
           </div>
 
           {MODOS_CON_CIERRE.includes(modeKey) ? (
-            <button
+            <div className="flex items-center gap-2 sm:gap-3 z-10 -mr-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setVerifAbierta(true);
+                  setVerifError('');
+                  setBarraVisible(true);
+                }}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--color-acento)]/30 bg-[var(--color-acento)]/10 text-[13px] sm:text-[14px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-acento)]/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                aria-label="Registrar lo que verificaste fuera de la IA"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Lo verifiqué por fuera</span>
+              </button>
+              <button
                 type="button"
                 onClick={() => {
                   setCierreAbierto(true);
                   setBarraVisible(true);
                 }}
                 disabled={turnosEstudiante === 0 || isLoading}
-                className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -mr-1 shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                className="inline-flex items-center gap-1 text-[14px] sm:text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
                 aria-label="Terminar la sesión y reflexionar"
               >
                 <Flag className="w-4 h-4" />
                 <span>Terminar</span>
               </button>
-            ) : (
-              <div className="w-12" />
-            )}
+            </div>
+          ) : (
+            <div className="w-12" />
+          )}
         </div>
       </div>
+
+      {/* Lo verifiqué por fuera: formulario de contrastación externa */}
+      {verifAbierta && (
+        <div
+          className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[2px] flex items-center justify-center px-4 sm:px-6 py-6"
+          onClick={() => setVerifAbierta(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-verif"
+            onClick={(e) => e.stopPropagation()}
+            className="message-appear w-full max-w-[540px] max-h-full overflow-y-auto overscroll-contain rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
+          >
+            <div className="p-5 sm:p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-[var(--color-acento)]/10 text-[var(--color-acento)] flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 id="titulo-verif" className="text-[18px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
+                    Lo verifiqué por fuera
+                  </h3>
+                  <p className="text-[14px] text-[var(--color-secundario)] leading-relaxed mt-0.5">
+                    Cuéntale al interlocutor qué dato contrastaste en otra fuente.
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[14px] font-medium text-[var(--color-texto)]">
+                  ¿Qué dato o idea comprobaste?
+                </span>
+                <textarea
+                  value={verifDato}
+                  onChange={(e) => {
+                    setVerifDato(e.target.value);
+                    setVerifError('');
+                  }}
+                  rows={2}
+                  maxLength={800}
+                  placeholder="Ej.: La fecha o definición que mencionamos…"
+                  className="w-full px-3.5 py-2 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[15px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[14px] font-medium text-[var(--color-texto)]">
+                  ¿En qué fuente lo comprobaste? (nombre o enlace)
+                </span>
+                <input
+                  type="text"
+                  value={verifFuente}
+                  onChange={(e) => {
+                    setVerifFuente(e.target.value);
+                    setVerifError('');
+                  }}
+                  maxLength={500}
+                  placeholder="Ej.: Libro guía de Química, enciclopedia, enlace…"
+                  className="w-full h-[42px] px-3.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[15px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                />
+              </label>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[14px] font-medium text-[var(--color-texto)]">
+                  ¿Qué dice esa fuente?
+                </span>
+                <div className="grid grid-cols-3 gap-2" role="group" aria-label="Qué dice la fuente">
+                  {(['Coincide', 'No coincide', 'Matiza'] as const).map((opcion) => (
+                    <button
+                      key={opcion}
+                      type="button"
+                      onClick={() => {
+                        setVerifResultado(opcion);
+                        setVerifError('');
+                      }}
+                      aria-pressed={verifResultado === opcion}
+                      className={`h-10 rounded-[12px] border text-[14px] font-semibold transition-colors ${
+                        verifResultado === opcion
+                          ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-white'
+                          : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)] hover:border-[var(--color-acento)]/50'
+                      }`}
+                    >
+                      {opcion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {verifError && (
+                <p className="text-[14px] text-[#B3261E] -mt-1" role="alert">
+                  {verifError}
+                </p>
+              )}
+
+              <div className="flex gap-2.5 pt-1 w-full">
+                <button
+                  type="button"
+                  onClick={() => setVerifAbierta(false)}
+                  className="flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] inline-flex items-center justify-center hover:bg-[var(--color-fondo)] transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!verifDato.trim()) {
+                      setVerifError('Escribe qué dato o idea comprobaste.');
+                      return;
+                    }
+                    if (!verifFuente.trim()) {
+                      setVerifError('Indica en qué fuente lo comprobaste.');
+                      return;
+                    }
+                    if (!verifResultado) {
+                      setVerifError('Selecciona qué dice la fuente (coincide, no coincide o matiza).');
+                      return;
+                    }
+                    const texto = `[Verificación externa]\nDato o idea comprobada: ${verifDato.trim()}\nFuente: ${verifFuente.trim()}\nQué dice la fuente: ${verifResultado}`;
+                    setVerifAbierta(false);
+                    setVerifDato('');
+                    setVerifFuente('');
+                    setVerifResultado('');
+                    setVerifError('');
+                    handleSendMessage({ texto });
+                  }}
+                  className="flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold inline-flex items-center justify-center hover:opacity-90 transition-opacity"
+                >
+                  Enviar al chat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cierre de sesión: reflexión metacognitiva y descarga */}
       {cierreAbierto && (
@@ -844,19 +1052,19 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               </div>
 
               {cierreEstado === 'listo' ? (
-                <div className="flex flex-col sm:flex-row gap-2.5">
+                <div className="flex flex-col sm:flex-row gap-2.5 w-full">
                   <button
                     type="button"
                     onClick={descargarConversacion}
-                    className="flex-1 h-[46px] rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] inline-flex items-center justify-center gap-2 hover:bg-[var(--color-fondo)] transition-colors"
+                    className="w-full sm:flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] inline-flex items-center justify-center gap-2 hover:bg-[var(--color-fondo)] transition-colors"
                   >
-                    <Download className="w-4 h-4" aria-hidden="true" />
+                    <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
                     Descargar conversación
                   </button>
                   <button
                     type="button"
                     onClick={onBackToModos}
-                    className="flex-1 h-[46px] rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity"
+                    className="w-full sm:flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold inline-flex items-center justify-center hover:opacity-90 transition-opacity"
                   >
                     Volver a los modos
                   </button>
@@ -885,6 +1093,24 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
                         <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">2</span>
+                        <span className="pt-0.5">¿Qué comprobaste fuera de la IA hoy y dónde? (Si no comprobaste nada, escríbelo y di qué habrías podido comprobar.)</span>
+                      </span>
+                      <textarea
+                        value={comprobe}
+                        onChange={(e) => {
+                          setComprobe(e.target.value);
+                          setCierreError('');
+                        }}
+                        rows={2}
+                        maxLength={1500}
+                        placeholder="Escríbelo con tus palabras…"
+                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">3</span>
                         <span className="pt-0.5">¿Qué habrías hecho sin ayuda de la IA? ¿Qué parte pensaste por tu cuenta?</span>
                       </span>
                       <textarea
@@ -902,7 +1128,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">3</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">4</span>
                         <span className="pt-0.5">
                           ¿Qué te quedó dudoso o qué te gustaría profundizar?{' '}
                           <span className="font-normal text-[var(--color-secundario)]">(opcional)</span>
@@ -919,7 +1145,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 
                     <div className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">4</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">5</span>
                         <span className="pt-0.5">¿Qué tan seguro te sientes de explicarlo sin ayuda?</span>
                       </span>
                       <div className="flex gap-2" role="group" aria-label="Nivel de seguridad de 1 a 5">
@@ -952,12 +1178,12 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     </p>
                   )}
 
-                  <div className="flex gap-2.5">
+                  <div className="flex gap-2.5 w-full">
                     <button
                       type="button"
                       onClick={() => setCierreAbierto(false)}
                       disabled={cierreEstado === 'enviando'}
-                      className="flex-1 h-[46px] px-3 whitespace-nowrap rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[14px] sm:text-[15px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-fondo)] transition-colors"
+                      className="flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[15px] font-medium text-[var(--color-acento)] inline-flex items-center justify-center hover:bg-[var(--color-fondo)] transition-colors"
                     >
                       Seguir conversando
                     </button>
@@ -965,7 +1191,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                       type="button"
                       onClick={enviarCierre}
                       disabled={cierreEstado === 'enviando'}
-                      className="flex-1 h-[46px] px-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-white text-[14px] sm:text-[15px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+                      className="flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold inline-flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-60"
                     >
                       {cierreEstado === 'enviando' ? 'Guardando…' : 'Terminar sesión'}
                     </button>
@@ -1315,6 +1541,26 @@ Cambiar de área
             </div>
           )}
 
+          {/* Primero tú: idea previa obligatoria antes del primer mensaje */}
+          {requiereIdeaPrevia && (
+            <div className="mb-2.5 rounded-[18px] bg-[var(--color-superficie)] border border-[var(--color-separador)] shadow-xs px-3.5 py-2.5 flex flex-col gap-1.5 message-appear">
+              <label htmlFor="idea-previa-input" className="text-[13.5px] font-medium text-[var(--color-texto)] leading-snug">
+                ¿Qué piensas tú antes de preguntarle a la IA? Escribe tu idea, tu intento o tu hipótesis, aunque no estés seguro.
+              </label>
+              <input
+                id="idea-previa-input"
+                ref={ideaPreviaRef}
+                type="text"
+                value={ideaPrevia}
+                onChange={(e) => setIdeaPrevia(e.target.value)}
+                maxLength={600}
+                disabled={isLoading || isProcessingFile}
+                placeholder="Tu idea, intento o hipótesis previa (obligatorio)…"
+                className="w-full h-[38px] px-3 rounded-[12px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[14.5px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+              />
+            </div>
+          )}
+
           {/* Formulario cápsula */}
           <form
             onSubmit={(e) => {
@@ -1365,9 +1611,9 @@ Cambiar de área
             {/* Botón enviar circular de 36px dentro del campo a la derecha (verde, icono flecha hacia arriba, deshabilitado y gris si está vacío) */}
             <button
               type="submit"
-              disabled={(!inputText.trim() && !attachedFile) || isLoading || isProcessingFile}
+              disabled={(!inputText.trim() && !attachedFile) || (requiereIdeaPrevia && !ideaPrevia.trim()) || isLoading || isProcessingFile}
               className={`w-[36px] h-[36px] rounded-full flex items-center justify-center shrink-0 mb-0.5 transition-all ${
-                (inputText.trim() || attachedFile) && !isLoading && !isProcessingFile
+                (inputText.trim() || attachedFile) && (!requiereIdeaPrevia || !!ideaPrevia.trim()) && !isLoading && !isProcessingFile
                   ? 'bg-[#0E5C36] dark:bg-[#2E9E64] text-white cursor-pointer active:scale-95 shadow-xs'
                   : 'bg-[var(--color-separador)]/50 text-[var(--color-secundario)] cursor-not-allowed opacity-60'
               }`}

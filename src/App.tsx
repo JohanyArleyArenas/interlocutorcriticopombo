@@ -133,6 +133,16 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
           </div>
         )}
 
+        <div className="rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] px-4 py-3.5 text-[13.5px] sm:text-[14px] text-[var(--color-texto)]">
+          <p className="font-semibold text-[var(--color-acento)] mb-2">Nuestro pacto de uso</p>
+          <ol className="list-decimal list-inside space-y-1 text-[var(--color-texto)] leading-snug">
+            <li>Pienso primero, pregunto después.</li>
+            <li>La IA puede equivocarse: compruebo lo importante en otra fuente.</li>
+            <li>No entrego como mío lo que escribió la IA.</li>
+            <li>Uso la IA para entender, no para terminar rápido.</li>
+          </ol>
+        </div>
+
         <label className="flex items-start gap-3 cursor-pointer select-none text-[13.5px] sm:text-[14px] text-[var(--color-texto)] leading-snug pt-1">
           <input
             type="checkbox"
@@ -143,7 +153,7 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
             }}
             className="mt-0.5 w-4 h-4 rounded border-[var(--color-separador)] text-[var(--color-acento)] focus:ring-[var(--color-acento)] shrink-0 accent-[#0E5C36]"
           />
-          <span>Leí esta información y acepto participar.</span>
+          <span>Leí esta información, acepto participar y me comprometo con el pacto de uso.</span>
         </label>
 
         {aviso && <p className="text-[14px] text-[#B3261E]" role="alert">{aviso}</p>}
