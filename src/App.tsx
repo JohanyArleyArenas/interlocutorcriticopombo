@@ -240,8 +240,12 @@ export default function App() {
         onBackToModos={
           selectedModeKey
             ? () => {
-                setTransferredMessages(undefined);
-                setSelectedModeKey(null);
+                const ev = new CustomEvent('interlocutor:intentar-volver-modos', { cancelable: true });
+                const noInterceptado = window.dispatchEvent(ev);
+                if (noInterceptado) {
+                  setTransferredMessages(undefined);
+                  setSelectedModeKey(null);
+                }
               }
             : undefined
         }

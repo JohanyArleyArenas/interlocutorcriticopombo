@@ -207,9 +207,12 @@ app.post('/api/chat', async (req, res) => {
     }).format(new Date());
 
     const avisoFecha = 'Tu conocimiento de entrenamiento tiene una fecha de corte anterior a hoy. No trates como error, dato futuro, anacronismo ni invención ninguna fecha, persona, cargo, acontecimiento o publicación igual o anterior a la FECHA DE HOY solo porque no la conoces.';
-    const fechaLinea = modo.busqueda
-      ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} Usa la búsqueda de Google para obtener información actualizada.`
-      : `FECHA DE HOY: ${fechaHoy}. ${avisoFecha}`;
+    const fechaLinea =
+      modeKey === 'verificar'
+        ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} Usa la búsqueda de Google para verificar la afirmación con fuentes reales; si no aparece ningún comunicado ni noticia sobre el hecho puntual, dilo y no inventes detalles.`
+        : modo.busqueda
+        ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} IMPORTANTE SOBRE BÚSQUEDA: NO ejecutes googleSearch para conceptos escolares estables (como fotosíntesis, ecuaciones, física, química, gramática o filosofía), ni al pedir la idea inicial del estudiante, ni al analizar la estructura, falacias o sesgos de una tesis. Usa googleSearch únicamente si es indispensable comprobar un dato actual específico.`
+        : `FECHA DE HOY: ${fechaHoy}. ${avisoFecha}`;
 
     // ===== Entrenador Saber 11: pregunta activa, páginas del cuadernillo y clave oficial =====
     let contextoIcfes = '';
@@ -597,6 +600,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         let versionModelo = '';
         let primerTextoRecibido = false;
         const chunksGrounding: any[] = [];
+        const supportsGrounding: any[] = [];
         const emitirFragmentoSeguro = (frag: string, esFinal = false) => {
           colaStream += frag;
           colaStream = limpiarMarcaIdea(colaStream);
@@ -632,8 +636,9 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         };
         for await (const parte of flujo) {
           if ((parte as any)?.modelVersion) versionModelo = (parte as any).modelVersion;
-          const cGrounding = (parte as any)?.candidates?.[0]?.groundingMetadata?.groundingChunks;
-          if (Array.isArray(cGrounding)) chunksGrounding.push(...cGrounding);
+          const gm = (parte as any)?.candidates?.[0]?.groundingMetadata;
+          if (Array.isArray(gm?.groundingChunks)) chunksGrounding.push(...gm.groundingChunks);
+          if (Array.isArray(gm?.groundingSupports)) supportsGrounding.push(...gm.groundingSupports);
           ultimo = parte;
           const delta = parte.text || '';
           if (delta) {
@@ -672,6 +677,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           text: limpiarMarcaIdea(texto).trimEnd(),
           candidates: ultimo?.candidates,
           groundingChunks: chunksGrounding,
+          groundingSupports: supportsGrounding,
           modelVersion: versionModelo || ultimo?.modelVersion || model,
         };
       } finally {
@@ -703,18 +709,56 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
             Array.isArray((response as any).groundingChunks) && (response as any).groundingChunks.length > 0
               ? (response as any).groundingChunks
               : (candidate as any)?.groundingMetadata?.groundingChunks;
-          if (Array.isArray(chunks)) {
-            const fuentesMap = new Map<string, string>();
-            for (const chunk of chunks) {
-              const url = chunk.web?.uri;
-              const titulo = chunk.web?.title || url;
-              if (url && !fuentesMap.has(url)) {
-                fuentesMap.set(url, titulo);
+          const supports =
+            Array.isArray((response as any).groundingSupports) && (response as any).groundingSupports.length > 0
+              ? (response as any).groundingSupports
+              : (candidate as any)?.groundingMetadata?.groundingSupports;
+          if (Array.isArray(chunks) && chunks.length > 0) {
+            const fragmentosPorIndice = new Map<number, string>();
+            const indicesUsados = new Set<number>();
+            if (Array.isArray(supports)) {
+              for (const sup of supports) {
+                const segTexto = String(sup?.segment?.text || '')
+                  .replace(/[*_#`]+/g, '')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+                const idxs: number[] = Array.isArray(sup?.groundingChunkIndices) ? sup.groundingChunkIndices : [];
+                for (const idx of idxs) {
+                  indicesUsados.add(idx);
+                  if (segTexto && !fragmentosPorIndice.has(idx)) {
+                    fragmentosPorIndice.set(idx, segTexto);
+                  }
+                }
               }
             }
-            fuentes = Array.from(fuentesMap.entries())
-              .slice(0, 8)
-              .map(([url, titulo]) => ({ titulo, url }));
+            // En modos que no son Verificar, si el modelo hizo una búsqueda en segundo plano pero no usó ningún fragmento en la respuesta, no mostramos fuentes vacías
+            const mostrarChunks = modeKey === 'verificar' || indicesUsados.size > 0;
+            if (mostrarChunks) {
+              const fuentesMap = new Map<string, string>();
+              chunks.forEach((chunk: any, idx: number) => {
+                if (indicesUsados.size > 0 && !indicesUsados.has(idx)) return;
+                const url = chunk?.web?.uri;
+                let titulo = String(chunk?.web?.title || '').trim();
+                if (!url) return;
+                const esSoloDominio = !titulo || /^[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(titulo);
+                if (esSoloDominio) {
+                  const frag = fragmentosPorIndice.get(idx);
+                  const dom = titulo || url;
+                  if (frag) {
+                    const recorte = frag.length > 65 ? frag.slice(0, 62).trimEnd() + '…' : frag;
+                    titulo = `${dom} — ${recorte}`;
+                  } else {
+                    titulo = dom;
+                  }
+                }
+                if (!fuentesMap.has(url)) {
+                  fuentesMap.set(url, titulo);
+                }
+              });
+              fuentes = Array.from(fuentesMap.entries())
+                .slice(0, 8)
+                .map(([url, titulo]) => ({ titulo, url }));
+            }
           }
 
           break; // Stop immediately once first model responds
@@ -906,21 +950,41 @@ app.post('/api/cierre', (req, res) => {
   try {
     const b = (req.body || {}) as Record<string, unknown>;
     const ip = String(req.ip || req.headers['x-forwarded-for'] || 'desconocida').split(',')[0].trim();
+    const texto = (v: unknown, max = 2000) => String(v ?? '').trim().slice(0, max);
+    const contarPalabras = (s: string) =>
+      s
+        .trim()
+        .split(/\s+/)
+        .filter((p) => /[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]{2,}/.test(p)).length;
+    const aprendiTxt = texto(b.aprendi);
+    const comprobeTxt = texto(b.comprobe);
+    const sinAyudaTxt = texto(b.sinAyuda);
+    const c = Number(b.confianza);
+    if (contarPalabras(aprendiTxt) < 5) {
+      return res.status(400).json({ error: 'En la pregunta 1, escribe una idea completa con tus palabras (mínimo 5 palabras).' });
+    }
+    if (contarPalabras(comprobeTxt) < 5) {
+      return res.status(400).json({ error: 'En la pregunta 2, explica con al menos 5 palabras qué comprobaste fuera (o qué habrías podido comprobar y dónde).' });
+    }
+    if (contarPalabras(sinAyudaTxt) < 5) {
+      return res.status(400).json({ error: 'En la pregunta 3, cuenta con al menos 5 palabras qué hiciste o habrías hecho por tu cuenta.' });
+    }
+    if (!(c >= 1 && c <= 5)) {
+      return res.status(400).json({ error: 'En el punto 5, elige de 1 a 5 qué tan seguro te sientes de explicarlo sin ayuda.' });
+    }
     if (superaLimite('cierre:' + String(b.sesion || ip).slice(0, 60), 3, 20)) {
       return res.status(429).json({ error: 'Ya registraste este cierre. Espera un momento.' });
     }
-    const texto = (v: unknown, max = 2000) => String(v ?? '').trim().slice(0, max);
     const modeKey = texto(b.modeKey, 40);
     const modo = AGENTE.modos[modeKey];
-    const c = Number(b.confianza);
-    const confianza = c >= 1 && c <= 5 ? String(Math.round(c)) : 'sin respuesta';
+    const confianza = String(Math.round(c));
     registrarInteraccion({
       fecha: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
       estudiante: texto(b.estudiante, 120),
       sesion: texto(b.sesion, 60),
       modo: `${modo ? modo.titulo : modeKey} — CIERRE`,
       turno: Number(b.turnos) || 0,
-      mensaje: `Qué aprendí: ${texto(b.aprendi)}\nQué comprobé fuera de la IA: ${texto(b.comprobe) || '—'}\nQué habría hecho sin ayuda: ${texto(b.sinAyuda) || '—'}\nQué me quedó dudoso: ${texto(b.dudas) || '—'}\nConfianza para explicarlo sin ayuda (1 a 5): ${confianza}`,
+      mensaje: `Qué aprendí: ${aprendiTxt}\nQué comprobé fuera de la IA: ${comprobeTxt}\nQué habría hecho sin ayuda: ${sinAyudaTxt}\nQué me quedó dudoso: ${texto(b.dudas) || '—'}\nConfianza para explicarlo sin ayuda (1 a 5): ${confianza}`,
       adjunto: '',
       respuesta: '',
       fuentes: '',

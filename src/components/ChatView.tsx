@@ -338,6 +338,7 @@ if (clave === 'tutor') return base;
   // ===== Cierre de sesión: reflexión del estudiante y descarga de la conversación =====
   const inicioSesionRef = useRef(Date.now());
   const [cierreAbierto, setCierreAbierto] = useState(false);
+  const [avisoSalidaSinCierre, setAvisoSalidaSinCierre] = useState(false);
   const [cierreEstado, setCierreEstado] = useState<'editando' | 'enviando' | 'listo'>('editando');
   const [cierreError, setCierreError] = useState('');
   const [aprendi, setAprendi] = useState('');
@@ -347,6 +348,25 @@ if (clave === 'tutor') return base;
   const [confianza, setConfianza] = useState(0);
   const turnosEstudiante = messages.filter((m) => m.role === 'user').length;
 
+  const intentarVolverAModos = () => {
+    if (MODOS_CON_CIERRE.includes(modeKey) && turnosEstudiante > 0 && cierreEstado !== 'listo') {
+      setAvisoSalidaSinCierre(true);
+      setCierreAbierto(true);
+      setBarraVisible(true);
+      return;
+    }
+    onBackToModos();
+  };
+
+  useEffect(() => {
+    const manejarIntentoSalida = (e: Event) => {
+      e.preventDefault();
+      intentarVolverAModos();
+    };
+    window.addEventListener('interlocutor:intentar-volver-modos', manejarIntentoSalida);
+    return () => window.removeEventListener('interlocutor:intentar-volver-modos', manejarIntentoSalida);
+  });
+
   // ===== Lo verifiqué por fuera: formulario breve de contrastación externa =====
   const [verifAbierta, setVerifAbierta] = useState(false);
   const [verifDato, setVerifDato] = useState('');
@@ -354,17 +374,27 @@ if (clave === 'tutor') return base;
   const [verifResultado, setVerifResultado] = useState<'Coincide' | 'No coincide' | 'Matiza' | ''>('');
   const [verifError, setVerifError] = useState('');
 
+  const contarPalabrasReales = (s: string): number =>
+    s
+      .trim()
+      .split(/\s+/)
+      .filter((p) => /[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]{2,}/.test(p)).length;
+
   const enviarCierre = async () => {
-    if (!aprendi.trim()) {
-      setCierreError('Escribe qué aprendiste tú hoy.');
+    if (contarPalabrasReales(aprendi) < 5) {
+      setCierreError('En la pregunta 1, escribe una idea completa con tus palabras (mínimo 5 palabras).');
       return;
     }
-    if (!comprobe.trim()) {
-      setCierreError('Escribe qué comprobaste fuera de la IA hoy y dónde (o qué habrías podido comprobar).');
+    if (contarPalabrasReales(comprobe) < 5) {
+      setCierreError('En la pregunta 2, explica con al menos 5 palabras qué comprobaste fuera (o qué habrías podido comprobar y dónde).');
       return;
     }
-    if (!sinAyuda.trim()) {
-      setCierreError('Escribe qué habrías hecho sin ayuda de la IA.');
+    if (contarPalabrasReales(sinAyuda) < 5) {
+      setCierreError('En la pregunta 3, cuenta con al menos 5 palabras qué hiciste o habrías hecho por tu cuenta.');
+      return;
+    }
+    if (confianza < 1 || confianza > 5) {
+      setCierreError('En el punto 5, elige de 1 a 5 qué tan seguro te sientes de explicarlo sin ayuda.');
       return;
     }
     setCierreEstado('enviando');
@@ -391,6 +421,7 @@ if (clave === 'tutor') return base;
         throw new Error(d.error || 'No se pudo guardar tu reflexión. Intenta de nuevo.');
       }
       setCierreEstado('listo');
+      setAvisoSalidaSinCierre(false);
     } catch (e: any) {
       setCierreEstado('editando');
       setCierreError(e?.message || 'No se pudo guardar tu reflexión. Intenta de nuevo.');
@@ -1016,7 +1047,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         <div className="max-w-[720px] mx-auto h-full flex items-center justify-between gap-1 relative">
           {/* Botón ‹ Modos */}
           <button
-            onClick={onBackToModos}
+            onClick={intentarVolverAModos}
             type="button"
             className="inline-flex items-center gap-1 text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity z-10 -ml-1 shrink-0 focus-visible:outline-none"
             aria-label="Volver a la selección de modos"
@@ -1051,6 +1082,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               <button
                 type="button"
                 onClick={() => {
+                  setAvisoSalidaSinCierre(false);
                   setCierreAbierto(true);
                   setBarraVisible(true);
                 }}
@@ -1240,6 +1272,12 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                 </div>
               </div>
 
+              {avisoSalidaSinCierre && cierreEstado !== 'listo' && (
+                <div className="px-3.5 py-2.5 rounded-[14px] bg-[var(--color-acento)]/10 border border-[var(--color-acento)]/30 text-[14px] font-medium text-[var(--color-texto)] leading-snug">
+                  Antes de volver a los modos, completa tu reflexión final para guardar el cierre de tu sesión.
+                </div>
+              )}
+
               {cierreEstado === 'listo' ? (
                 <div className="flex flex-col sm:flex-row gap-2.5 w-full">
                   <button
@@ -1342,7 +1380,10 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                           <button
                             key={n}
                             type="button"
-                            onClick={() => setConfianza(n)}
+                            onClick={() => {
+                              setConfianza(n);
+                              setCierreError('');
+                            }}
                             aria-pressed={confianza === n}
                             className={`flex-1 h-10 rounded-[12px] border text-[15px] font-semibold transition-colors ${
                               confianza === n
@@ -1577,9 +1618,10 @@ if (msg.selector) {
                               activarAvisoPrivacidadUnaVez();
                               fileInputRef.current?.click();
                             }}
-                            className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 min-h-[44px] rounded-2xl bg-[var(--color-acento)] text-white hover:opacity-90 transition-opacity"
+                            className="inline-flex items-center justify-center gap-2 text-[14px] font-medium px-4 py-2 min-h-[44px] rounded-2xl bg-[var(--color-acento)] text-white hover:opacity-90 transition-opacity"
                           >
-                            <Upload className="w-4 h-4" aria-hidden="true" /> {modeKey === 'tutor' ? 'Subir foto del ejercicio' : 'Subir mi escrito'}
+                            <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
+                            <span>{modeKey === 'tutor' ? 'Subir foto del ejercicio' : 'Subir mi escrito'}</span>
                           </button>
                         )}
                       </div>
@@ -1617,7 +1659,7 @@ if (msg.selector) {
                                     e.stopPropagation();
                                     cambiarAModo(claveDestino);
                                   }}
-                                  className="relative z-10 pointer-events-auto inline-flex items-center gap-1.5 mt-1 mr-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
+                                  className="relative z-10 pointer-events-auto w-full sm:w-auto min-h-[46px] h-[46px] mt-1.5 mr-2 px-5 py-2.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[15px] font-semibold text-[var(--color-acento)] inline-flex items-center justify-center gap-2 hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
                                 >
                                   <span>{children || `Cambiar a ${modoDestino.titulo}`}</span>
                                   <span aria-hidden="true">→</span>
@@ -1644,7 +1686,7 @@ if (msg.selector) {
                   </div>
 
                   {modosSugeridos.length > 0 && (onCambiarModo || onChangeModo) && (
-                    <div className="mt-2.5 flex flex-wrap gap-2 relative z-10 pointer-events-auto">
+                    <div className="mt-3 flex flex-col sm:flex-row flex-wrap gap-2.5 relative z-10 pointer-events-auto">
                       {modosSugeridos.map((claveSug) => (
                         <button
                           key={claveSug}
@@ -1654,7 +1696,7 @@ if (msg.selector) {
                             e.stopPropagation();
                             cambiarAModo(claveSug);
                           }}
-                          className="relative z-10 pointer-events-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
+                          className="relative z-10 pointer-events-auto w-full sm:w-auto min-h-[46px] h-[46px] px-5 py-2.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[15px] font-semibold text-[var(--color-acento)] inline-flex items-center justify-center gap-2 hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
                         >
                           <span>Cambiar a {AGENTE.modos[claveSug].titulo}</span>
                           <span aria-hidden="true">→</span>
@@ -1694,7 +1736,7 @@ if (msg.selector) {
                                   (e.target as HTMLElement).style.display = 'none';
                                 }}
                               />
-                              <span className="truncate max-w-[200px] font-medium">
+                              <span className="truncate max-w-[300px] sm:max-w-[360px] font-medium">
                                 {f.titulo || hostname}
                               </span>
                               <ExternalLink className="w-3 h-3 text-[var(--color-secundario)] shrink-0 opacity-70" />
@@ -1709,10 +1751,10 @@ if (msg.selector) {
             );
           })}
 
-          {/* Mientras espera: en modos con búsqueda "Buscando en Google…"; en los demás, tres puntos animados */}
+          {/* Mientras espera: en Verificar "Buscando en Google…"; en los demás, tres puntos animados */}
           {isLoading && (
             <div className="flex items-center gap-2 py-1 text-[15px] text-[var(--color-secundario)] message-appear">
-              {modo.busqueda ? (
+              {modeKey === 'verificar' ? (
                 <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-[var(--color-acento)] animate-spin" />
                   <span className="font-medium text-[var(--color-texto)]">
@@ -1800,7 +1842,7 @@ Cambiar de área
               e.preventDefault();
               handleSendMessage();
             }}
-            className="w-full bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[28px] shadow-sm px-4 py-2 flex items-end gap-2 transition-all"
+            className="w-full min-h-[52px] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[28px] shadow-sm px-2.5 py-1.5 flex items-center gap-2 transition-all"
           >
             {/* Input para adjuntar archivo (solo en modos con adjuntos=true) */}
             {modo.adjuntos && (
@@ -1823,11 +1865,11 @@ Cambiar de área
                     fileInputRef.current?.click();
                   }}
                   disabled={isLoading || isProcessingFile}
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--color-secundario)] hover:text-[var(--color-texto)] hover:bg-[var(--color-fondo)] transition-colors shrink-0 mb-0.5"
+                  className="w-[38px] h-[38px] p-0 rounded-full flex items-center justify-center self-center text-[var(--color-secundario)] hover:text-[var(--color-texto)] hover:bg-[var(--color-fondo)] transition-colors shrink-0 leading-none"
                   title="Adjuntar archivo (JPG, PNG, WEBP, PDF, TXT, DOCX — máx. 10 MB)"
                   aria-label="Adjuntar archivo"
                 >
-                  <Paperclip className="w-5 h-5" />
+                  <Paperclip className="w-5 h-5 block shrink-0" />
                 </button>
               </>
             )}
@@ -1841,14 +1883,14 @@ Cambiar de área
               onKeyDown={handleKeyDown}
               disabled={isLoading || (esIcfes && !preguntaActiva)}
               placeholder={esIcfes && !preguntaActiva ? 'Elige un área para empezar' : PLACEHOLDERS_CAMPO[placeholderIdx]}
-              className="flex-1 bg-transparent py-2 text-[16px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)] resize-none focus:outline-none max-h-[144px] leading-snug"
+              className={`flex-1 bg-transparent py-1.5 ${modo.adjuntos ? 'pl-0.5' : 'pl-2'} pr-1 text-[16px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)] resize-none focus:outline-none max-h-[144px] leading-snug self-center`}
             />
 
-            {/* Botón enviar circular de 36px dentro del campo a la derecha (verde, icono flecha hacia arriba, deshabilitado y gris si está vacío) */}
+            {/* Botón enviar circular dentro del campo a la derecha (verde, icono flecha hacia arriba, deshabilitado y gris si está vacío) */}
             <button
               type="submit"
               disabled={(!inputText.trim() && !attachedFile) || isLoading || isProcessingFile}
-              className={`w-[36px] h-[36px] rounded-full flex items-center justify-center shrink-0 mb-0.5 transition-all ${
+              className={`w-[38px] h-[38px] p-0 rounded-full flex items-center justify-center self-center shrink-0 leading-none transition-all ${
                 (inputText.trim() || attachedFile) && !isLoading && !isProcessingFile
                   ? 'bg-[#0E5C36] dark:bg-[#2E9E64] text-white cursor-pointer active:scale-95 shadow-xs'
                   : 'bg-[var(--color-separador)]/50 text-[var(--color-secundario)] cursor-not-allowed opacity-60'
@@ -1856,7 +1898,7 @@ Cambiar de área
               title="Enviar mensaje (Enter)"
               aria-label="Enviar mensaje"
             >
-              <ArrowUp className="w-5 h-5 stroke-[2.5]" />
+              <ArrowUp className="w-5 h-5 block shrink-0 stroke-[2.5]" />
             </button>
           </form>
 
