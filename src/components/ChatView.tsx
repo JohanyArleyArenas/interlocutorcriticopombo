@@ -61,17 +61,6 @@ const ICONOS_MODO: Record<string, React.ElementType> = {
   icfes: GraduationCap,
 };
 
-const PASOS_MODO: Record<string, string[]> = {
-  socratico: ['Dime el tema y la materia', 'Te explico un poco y te hago una pregunta', 'Avanzas paso a paso hasta explicarlo con tus palabras'],
-  explorar: ['Afinamos tu pregunta de investigación', 'Aprendes a buscar fuentes académicas gratuitas', 'Las estudias en NotebookLM y evalúas lo hallado'],
-  argumento: ['Escribe tu tesis y tus razones', 'La revisamos por etapas: estructura, falacias, sesgos y objeciones', 'La pules hasta que esté lista para redactar'],
-  verificar: ['Pega la afirmación y dónde la viste', 'La contrastamos con evidencia', 'Recibes un veredicto con sus razones'],
-  auditar: ['Pega la pregunta y la respuesta de la otra IA', 'Señalas tú lo sospechoso y lo compruebas en fuentes', 'Comparamos y escribes tu versión corregida'],
-  escrito: ['Sube tu archivo o pega tu texto', 'Reviso por rondas: estructura, párrafos, oraciones y ortografía', 'Corriges y me envías cada nueva versión'],
-  tutor: ['Escribe o sube una foto de tu ejercicio', 'Entiendes el concepto y das cada paso tú', 'Compruebas tu resultado y practicas uno parecido'],
-  icfes: ['Elige un área y lee la pregunta real', 'Marca tu respuesta', 'Recibe la explicación y un truco para la próxima'],
-};
-
 const EJEMPLOS_MODO: Record<string, string[]> = {
   socratico: ['Quiero entender las ecuaciones de segundo grado', 'Quiero aprender qué es la fotosíntesis'],
   explorar: ['¿Las redes sociales afectan la concentración de los jóvenes?'],
@@ -91,17 +80,91 @@ const PLACEHOLDERS_CAMPO = [
   'Escribe lo que se te ocurra; lo pensamos juntos',
 ];
 
-// Detecta si la respuesta del agente sugiere cambiar a otro modo (cuando no incluyó ya un enlace /modo:clave)
-const PATRONES_REDIRECCION_MODO: Array<{ key: string; regex: RegExp }> = [
-  { key: 'verificar', regex: /\bmodo\s+«?verificar(?:\s+una\s+afirmaci[oó]n)?»?|«verificar\s+una\s+afirmaci[oó]n»|\*\*verificar\s+una\s+afirmaci[oó]n\*\*/i },
-  { key: 'socratico', regex: /\bmodo\s+«?di[aá]logo\s+socr[aá]tico»?|«di[aá]logo\s+socr[aá]tico»|\*\*di[aá]logo\s+socr[aá]tico\*\*/i },
-  { key: 'explorar', regex: /\bmodo\s+«?gu[ií]a\s+de\s+investigaci[oó]n»?|«gu[ií]a\s+de\s+investigaci[oó]n»|\*\*gu[ií]a\s+de\s+investigaci[oó]n\*\*/i },
-  { key: 'argumento', regex: /\bmodo\s+«?taller\s+de\s+argumentos»?|«taller\s+de\s+argumentos»|\*\*taller\s+de\s+argumentos\*\*/i },
-  { key: 'auditar', regex: /\bmodo\s+«?auditar\s+una\s+respuesta\s+de\s+ia»?|«auditar\s+una\s+respuesta\s+de\s+ia»|\*\*auditar\s+una\s+respuesta\s+de\s+ia\*\*/i },
-  { key: 'tutor', regex: /\bmodo\s+«?tutor\s+de\s+matem[aá]ticas,\s+f[ií]sica\s+y\s+qu[ií]mica»?|«tutor\s+de\s+matem[aá]ticas,\s+f[ií]sica\s+y\s+qu[ií]mica»|\*\*tutor\s+de\s+matem[aá]ticas,\s+f[ií]sica\s+y\s+qu[ií]mica\*\*/i },
-  { key: 'icfes', regex: /\bmodo\s+«?entrenador\s+saber\s+11»?|«entrenador\s+saber\s+11»|\*\*entrenador\s+saber\s+11\*\*/i },
-  { key: 'escrito', regex: /\bmodo\s+«?revisar\s+mi\s+escrito»?|«revisar\s+mi\s+escrito»|\*\*revisar\s+mi\s+escrito\*\*/i },
+const normalizarTextoModo = (s: string): string =>
+  String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+// Tabla de correspondencia fija entre el nombre visible en la interfaz (y variantes) y el id interno
+const TABLA_CORRESPONDENCIA_MODOS: Array<{ nombreNorm: string; id: string; soloExplicito?: boolean }> = [
+  { nombreNorm: 'dialogo socratico', id: 'socratico' },
+  { nombreNorm: 'socratico', id: 'socratico', soloExplicito: true },
+  { nombreNorm: 'guia de investigacion', id: 'explorar' },
+  { nombreNorm: 'guia investigacion', id: 'explorar' },
+  { nombreNorm: 'explorar', id: 'explorar', soloExplicito: true },
+  { nombreNorm: 'taller de argumentos', id: 'argumento' },
+  { nombreNorm: 'poner a prueba un argumento', id: 'argumento' },
+  { nombreNorm: 'argumento', id: 'argumento', soloExplicito: true },
+  { nombreNorm: 'verificar una afirmacion', id: 'verificar' },
+  { nombreNorm: 'verificar afirmacion', id: 'verificar' },
+  { nombreNorm: 'verificar', id: 'verificar', soloExplicito: true },
+  { nombreNorm: 'auditar una respuesta de ia', id: 'auditar' },
+  { nombreNorm: 'auditar respuesta de ia', id: 'auditar' },
+  { nombreNorm: 'auditar', id: 'auditar', soloExplicito: true },
+  { nombreNorm: 'tutor de matematicas fisica y quimica', id: 'tutor' },
+  { nombreNorm: 'tutor de matematicas', id: 'tutor' },
+  { nombreNorm: 'tutor', id: 'tutor', soloExplicito: true },
+  { nombreNorm: 'revisar mi escrito', id: 'escrito' },
+  { nombreNorm: 'escrito', id: 'escrito', soloExplicito: true },
+  { nombreNorm: 'entrenador saber 11', id: 'icfes' },
+  { nombreNorm: 'saber 11', id: 'icfes', soloExplicito: true },
+  { nombreNorm: 'icfes', id: 'icfes', soloExplicito: true },
 ];
+
+const resolverIdModo = (raw: string): string | null => {
+  const norm = normalizarTextoModo(raw)
+    .replace(/^modo\s+/, '')
+    .replace(/^cambiar\s+a(?:l\s+modo)?\s+/, '')
+    .trim();
+  if (!norm) return null;
+  const exacto = TABLA_CORRESPONDENCIA_MODOS.find((m) => m.nombreNorm === norm);
+  if (exacto) return exacto.id;
+  const parcial = TABLA_CORRESPONDENCIA_MODOS.find(
+    (m) => m.nombreNorm.length >= 5 && norm.includes(m.nombreNorm)
+  );
+  return parcial ? parcial.id : null;
+};
+
+const PATRON_MARCA_MODO_CLIENTE = /`?\s*⟦\s*modo\s*:\s*([^⟧]+?)\s*⟧\s*`?/gi;
+const PATRON_ENLACE_MODO_CLIENTE = /\[([^\]]*)\]\(\s*\/?#?modo:([^)]+)\)/gi;
+
+const extraerModosSugeridosYLimpiar = (
+  texto: string,
+  modoActual: string,
+  modoServidor?: string
+): { textoLimpio: string; modosSugeridos: string[] } => {
+  const encontrados = new Set<string>();
+  if (modoServidor) {
+    const idSrv = resolverIdModo(modoServidor);
+    if (idSrv && idSrv !== modoActual && AGENTE.modos[idSrv]) encontrados.add(idSrv);
+  }
+  let textoLimpio = String(texto || '');
+  textoLimpio = textoLimpio.replace(PATRON_MARCA_MODO_CLIENTE, (_m, rawId) => {
+    const id = resolverIdModo(rawId);
+    if (id && id !== modoActual && AGENTE.modos[id]) encontrados.add(id);
+    return '';
+  });
+  textoLimpio = textoLimpio.replace(PATRON_ENLACE_MODO_CLIENTE, (_m, label, rawHref) => {
+    const id = resolverIdModo(rawHref) || resolverIdModo(label);
+    if (id && id !== modoActual && AGENTE.modos[id]) encontrados.add(id);
+    return '';
+  });
+  if (encontrados.size === 0 && textoLimpio) {
+    const textoNorm = normalizarTextoModo(textoLimpio);
+    for (const item of TABLA_CORRESPONDENCIA_MODOS) {
+      if (item.id === modoActual || !AGENTE.modos[item.id]) continue;
+      if (!item.soloExplicito && textoNorm.includes(item.nombreNorm)) {
+        encontrados.add(item.id);
+      } else if (item.soloExplicito && textoNorm.includes(`modo ${item.nombreNorm}`)) {
+        encontrados.add(item.id);
+      }
+    }
+  }
+  return { textoLimpio: textoLimpio.trimEnd(), modosSugeridos: Array.from(encontrados) };
+};
 
 export interface ChatArchivo {
   nombre: string;
@@ -117,6 +180,9 @@ export interface ChatMessage {
   text: string;
   archivo?: ChatArchivo;
   fuentes?: Array<{ titulo: string; url: string }>;
+  modoSugerido?: string;
+  avisoSistema?: boolean;
+  esRedireccion?: boolean;
   pregunta?: PreguntaIcfesMeta;
   selector?: boolean;
   icfes?: { id: string; accion: string; respuesta?: string };
@@ -126,6 +192,7 @@ export interface ChatMessage {
 interface ChatViewProps {
   modeKey: string;
   onBackToModos: () => void;
+  onCambiarModo?: (newModeKey: string, mensajesConservar?: ChatMessage[]) => void;
   onChangeModo?: (newModeKey: string, mensajesConservar?: ChatMessage[]) => void;
   initialMessages?: ChatMessage[];
   estudiante?: string;
@@ -140,11 +207,12 @@ interface AttachedFilePreview {
   texto?: string;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onChangeModo, initialMessages, estudiante }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onCambiarModo, onChangeModo, initialMessages, estudiante }) => {
   const modo: ModoConfig = AGENTE.modos[modeKey] || {
     titulo: 'Diálogo socrático',
     descripcion: '',
     saludo: '',
+    guia: ['', '', ''],
     instrucciones: '',
     busqueda: false,
     adjuntos: false,
@@ -162,7 +230,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onCh
     if (modeKey !== 'icfes' && Array.isArray(initialMessages) && initialMessages.length > 0) {
       const previos = initialMessages.filter((m) => m.id !== 'greeting' && !m.pregunta && !m.selector);
       if (previos.length > 0) {
-        return [saludoInicial, ...previos];
+        const avisoCambio: ChatMessage = {
+          id: `aviso-modo-${Date.now()}`,
+          role: 'model',
+          text: `Cambiaste al modo ${modo.titulo}`,
+          avisoSistema: true,
+          timestamp: Date.now(),
+        };
+        return [saludoInicial, ...previos, avisoCambio];
       }
     }
     return [saludoInicial];
@@ -181,11 +256,27 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onCh
     prevVacioRef.current = vacio;
   }, [inputText]);
 
-  const cambiarAModo = (destino: string) => {
+  const cambiarAModo = (rawDestino: string) => {
+    const destino = resolverIdModo(rawDestino) || rawDestino;
     if (!destino || !AGENTE.modos[destino] || destino === modeKey) return;
-    if (onChangeModo) {
-      onChangeModo(destino, messages);
+    console.log(`[Cambio de modo] de ${modeKey} a ${destino}`);
+    const fnCambiar = onCambiarModo || onChangeModo;
+    if (!fnCambiar) return;
+    if (destino === 'icfes') {
+      fnCambiar('icfes', undefined);
+      return;
     }
+    const idxUltimoUser = messages.map((m) => m.role === 'user').lastIndexOf(true);
+    const historialParaNuevoModo = messages
+      .filter((m) => m.id !== 'greeting' && !m.pregunta && !m.selector)
+      .map((m, idx, arr) => {
+        const idxOriginal = messages.indexOf(m);
+        const esPosteriorAUltimoUser =
+          idxUltimoUser >= 0 && idxOriginal > idxUltimoUser && m.role === 'model' && !m.avisoSistema;
+        const esUltimaRespuestaModelo = idx === arr.length - 1 && m.role === 'model' && !m.avisoSistema;
+        return esPosteriorAUltimoUser || esUltimaRespuestaModelo ? { ...m, esRedireccion: true } : m;
+      });
+    fnCambiar(destino, historialParaNuevoModo);
   };
   const [attachedFile, setAttachedFile] = useState<AttachedFilePreview | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
@@ -550,63 +641,28 @@ if (clave === 'tutor') return base;
     }
   };
 
-  const handleSendMessage = async (forzadoArg?: any) => {
-const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; reintento?: boolean } | undefined =
-  forzadoArg && typeof forzadoArg.texto === 'string' ? forzadoArg : undefined;
-    const trimmed = (f ? f.texto : inputText).trim();
-    if ((!trimmed && !attachedFile && !f?.archivo) || isLoading || isProcessingFile || enviandoRef.current) return;
+  const enviarConversacionAlServidor = async (
+    mensajesActuales: ChatMessage[],
+    icfesPayload?: ChatMessage['icfes']
+  ) => {
     enviandoRef.current = true;
-
-    let userArchivo: ChatArchivo | undefined = f?.archivo;
-    if (attachedFile && !f) {
-      userArchivo = {
-        nombre: attachedFile.nombre,
-        mimeType: attachedFile.mimeType,
-        data: attachedFile.data,
-        texto: attachedFile.texto,
-        tamano: attachedFile.tamano,
-      };
-    }
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      text: trimmed,
-      archivo: userArchivo,
-      icfes: f ? f.icfes : esIcfes && preguntaActiva ? { id: preguntaActiva.id, accion: 'conversar' } : undefined,
-      timestamp: Date.now(),
-    };
-
-    const nextMessages = [...(f?.reintento ? messages.slice(0, -1) : messages), userMessage];
-    setMessages(nextMessages);
-    if (!f) {
-      setInputText('');
-      setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS_CAMPO.length);
-      prevVacioRef.current = true;
-    }
-    if (!f) {
-      setAttachedFile(null);
-      setMostrarAvisoPrivacidadArchivo(false);
-    }
     setErrorMessage(null);
-    // En móvil se cierra el teclado al enviar para poder leer la respuesta
     if (esMovil()) textareaRef.current?.blur();
     setIsLoading(true);
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-
     try {
       // En el entrenador solo se envía la conversación de la pregunta en curso (desde su tarjeta)
-const payloadMessages = (esIcfes ? nextMessages.slice(Math.max(0, nextMessages.map((mm) => !!mm.pregunta).lastIndexOf(true))) : nextMessages)
-.filter((msg) => !msg.selector)
-.map((msg) => ({
-        role: msg.role,
-        text: msg.text,
-        archivo: msg.archivo,
-      icfes: msg.icfes,
-      }));
+      const baseMensajes = esIcfes
+        ? mensajesActuales.slice(Math.max(0, mensajesActuales.map((mm) => !!mm.pregunta).lastIndexOf(true)))
+        : mensajesActuales;
+      const payloadMessages = baseMensajes
+        .filter((msg) => !msg.selector && !msg.avisoSistema && !msg.esRedireccion)
+        .map((msg) => ({
+          role: msg.role,
+          text: msg.text,
+          archivo: msg.archivo,
+          icfes: msg.icfes,
+        }));
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -619,7 +675,7 @@ const payloadMessages = (esIcfes ? nextMessages.slice(Math.max(0, nextMessages.m
           estudiante: estudiante || '',
           sesion: sesionRef.current,
           stream: true,
-icfes: userMessage.icfes,
+          icfes: icfesPayload,
         }),
       });
 
@@ -646,21 +702,33 @@ icfes: userMessage.icfes,
         const idRespuesta = `model-${Date.now()}`;
         let acumulado = '';
         let creado = false;
-        const pintar = (texto: string, fuentesFinales?: any[]) => {
+        const pintar = (texto: string, fuentesFinales?: any[], modoSug?: string) => {
+          const { textoLimpio, modosSugeridos } = extraerModosSugeridosYLimpiar(texto, modeKey, modoSug);
+          const modoDest = modosSugeridos[0];
           if (!creado) {
             creado = true;
             setIsLoading(false);
             const nuevoMensaje: ChatMessage = {
               id: idRespuesta,
               role: 'model',
-              text: texto,
+              text: textoLimpio,
               fuentes: fuentesFinales || [],
+              ...(modoDest ? { modoSugerido: modoDest } : {}),
               timestamp: Date.now(),
             };
             setMessages((prev) => [...prev, nuevoMensaje]);
           } else {
             setMessages((prev) =>
-              prev.map((mm) => (mm.id === idRespuesta ? { ...mm, text: texto, ...(fuentesFinales ? { fuentes: fuentesFinales } : {}) } : mm))
+              prev.map((mm) =>
+                mm.id === idRespuesta
+                  ? {
+                      ...mm,
+                      text: textoLimpio,
+                      ...(fuentesFinales ? { fuentes: fuentesFinales } : {}),
+                      ...(modoDest ? { modoSugerido: modoDest } : {}),
+                    }
+                  : mm
+              )
             );
           }
         };
@@ -690,9 +758,13 @@ icfes: userMessage.icfes,
             } else if (evento.t === 'reinicio') {
               acumulado = '';
             } else if (evento.t === 'fin') {
-if (evento.icfes) aplicarResultadoIcfes(evento.icfes);
+              if (evento.icfes) aplicarResultadoIcfes(evento.icfes);
               acumulado = evento.reply || acumulado;
-              pintar(acumulado, Array.isArray(evento.fuentes) ? evento.fuentes : []);
+              pintar(
+                acumulado,
+                Array.isArray(evento.fuentes) ? evento.fuentes : [],
+                typeof evento.modoSugerido === 'string' ? evento.modoSugerido : undefined
+              );
               terminado = true;
             } else if (evento.t === 'error') {
               throw new Error(evento.error || MENSAJE_NO_DISPONIBLE);
@@ -708,17 +780,22 @@ if (evento.icfes) aplicarResultadoIcfes(evento.icfes);
         } catch {
           throw new Error(MENSAJE_NO_DISPONIBLE);
         }
-        const replyText = data?.reply || '';
+        const { textoLimpio, modosSugeridos } = extraerModosSugeridosYLimpiar(
+          data?.reply || '',
+          modeKey,
+          typeof data?.modoSugerido === 'string' ? data.modoSugerido : undefined
+        );
         const fuentes = Array.isArray(data?.fuentes) ? data.fuentes : [];
-  
+
         const agentMessage: ChatMessage = {
           id: `model-${Date.now()}`,
           role: 'model',
-          text: replyText,
+          text: textoLimpio,
           fuentes,
+          ...(modosSugeridos[0] ? { modoSugerido: modosSugeridos[0] } : {}),
           timestamp: Date.now(),
         };
-  
+
         setMessages((prev) => [...prev, agentMessage]);
       }
     } catch (err: any) {
@@ -743,6 +820,62 @@ if (evento.icfes) aplicarResultadoIcfes(evento.icfes);
         }, 50);
       }
     }
+  };
+
+  // Si se llega a este modo desde una sugerencia de cambio de modo, retoma automáticamente la última petición del estudiante
+  const retomadoAlCambiarRef = useRef(false);
+  useEffect(() => {
+    if (retomadoAlCambiarRef.current) return;
+    if (modeKey !== 'icfes' && Array.isArray(initialMessages) && initialMessages.length > 0) {
+      const tienePeticionEstudiante = messages.some((m) => m.role === 'user');
+      if (tienePeticionEstudiante) {
+        retomadoAlCambiarRef.current = true;
+        enviarConversacionAlServidor(messages);
+      }
+    }
+  }, []);
+
+  const handleSendMessage = async (forzadoArg?: any) => {
+    const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; reintento?: boolean } | undefined =
+      forzadoArg && typeof forzadoArg.texto === 'string' ? forzadoArg : undefined;
+    const trimmed = (f ? f.texto : inputText).trim();
+    if ((!trimmed && !attachedFile && !f?.archivo) || isLoading || isProcessingFile || enviandoRef.current) return;
+
+    let userArchivo: ChatArchivo | undefined = f?.archivo;
+    if (attachedFile && !f) {
+      userArchivo = {
+        nombre: attachedFile.nombre,
+        mimeType: attachedFile.mimeType,
+        data: attachedFile.data,
+        texto: attachedFile.texto,
+        tamano: attachedFile.tamano,
+      };
+    }
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      text: trimmed,
+      archivo: userArchivo,
+      icfes: f ? f.icfes : esIcfes && preguntaActiva ? { id: preguntaActiva.id, accion: 'conversar' } : undefined,
+      timestamp: Date.now(),
+    };
+
+    const nextMessages = [...(f?.reintento ? messages.slice(0, -1) : messages), userMessage];
+    setMessages(nextMessages);
+    if (!f) {
+      setInputText('');
+      setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS_CAMPO.length);
+      prevVacioRef.current = true;
+      setAttachedFile(null);
+      setMostrarAvisoPrivacidadArchivo(false);
+    }
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
+    await enviarConversacionAlServidor(nextMessages, userMessage.icfes);
   };
 
   
@@ -1305,6 +1438,16 @@ if (msg.selector) {
 }
 
 
+            if (msg.avisoSistema) {
+              return (
+                <div key={msg.id} className="flex justify-center my-2 message-appear">
+                  <span className="px-3.5 py-1 rounded-full bg-[var(--color-superficie)] border border-[var(--color-separador)] text-[13px] font-medium text-[var(--color-secundario)] shadow-2xs">
+                    {msg.text}
+                  </span>
+                </div>
+              );
+            }
+
             if (isUser) {
               return (
                 <div key={msg.id} data-role="user" className="flex flex-col items-end message-appear">
@@ -1342,7 +1485,7 @@ if (msg.selector) {
             // Tarjeta de bienvenida del modo (instrucciones iniciales)
             if (msg.id === 'greeting') {
               const IconoModo = ICONOS_MODO[modeKey] || MessageSquareQuote;
-              const pasos = PASOS_MODO[modeKey] || [];
+              const pasos = modo.guia || [];
               const ejemplos = ideasPara(modeKey);
               const sinMensajes = messages.length === 1;
               return (
@@ -1447,12 +1590,11 @@ if (msg.selector) {
             }
 
             // Respuesta de la IA: sin burbuja, sin avatar, texto sobre el fondo
-            const tieneEnlaceModo = /\/?modo:[a-z]+/i.test(msg.text || '');
-            const modosSugeridos = !tieneEnlaceModo
-              ? PATRONES_REDIRECCION_MODO.filter(
-                  (p) => p.key !== modeKey && AGENTE.modos[p.key] && p.regex.test(msg.text || '')
-                ).map((p) => p.key)
-              : [];
+            const { textoLimpio: textoMensajeLimpio, modosSugeridos } = extraerModosSugeridosYLimpiar(
+              msg.text || '',
+              modeKey,
+              msg.modoSugerido
+            );
             return (
               <div key={msg.id} className="flex flex-col message-appear">
                 <div className="overflow-hidden">
@@ -1462,16 +1604,20 @@ if (msg.selector) {
                       components={{
                         pre: renderPre,
                         a: ({ node, href, children, ...props }) => {
-                          const matchModo = /^\/?#?modo:([a-z]+)$/i.exec(String(href || '').trim());
+                          const matchModo = /^\/?#?modo:(.+)$/i.exec(String(href || '').trim());
                           if (matchModo) {
-                            const claveDestino = matchModo[1].toLowerCase();
+                            const claveDestino = resolverIdModo(matchModo[1]) || matchModo[1].toLowerCase().trim();
                             const modoDestino = AGENTE.modos[claveDestino];
                             if (modoDestino && claveDestino !== modeKey) {
                               return (
                                 <button
                                   type="button"
-                                  onClick={() => cambiarAModo(claveDestino)}
-                                  className="inline-flex items-center gap-1.5 mt-1 mr-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    cambiarAModo(claveDestino);
+                                  }}
+                                  className="relative z-10 pointer-events-auto inline-flex items-center gap-1.5 mt-1 mr-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
                                 >
                                   <span>{children || `Cambiar a ${modoDestino.titulo}`}</span>
                                   <span aria-hidden="true">→</span>
@@ -1493,18 +1639,22 @@ if (msg.selector) {
                         },
                       }}
                     >
-                      {prepararMatematicas(msg.text)}
+                      {prepararMatematicas(textoMensajeLimpio)}
                     </ReactMarkdown>
                   </div>
 
-                  {modosSugeridos.length > 0 && onChangeModo && (
-                    <div className="mt-2.5 flex flex-wrap gap-2">
+                  {modosSugeridos.length > 0 && (onCambiarModo || onChangeModo) && (
+                    <div className="mt-2.5 flex flex-wrap gap-2 relative z-10 pointer-events-auto">
                       {modosSugeridos.map((claveSug) => (
                         <button
                           key={claveSug}
                           type="button"
-                          onClick={() => cambiarAModo(claveSug)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            cambiarAModo(claveSug);
+                          }}
+                          className="relative z-10 pointer-events-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--color-acento)]/12 border border-[var(--color-acento)]/35 text-[14px] font-semibold text-[var(--color-acento)] hover:bg-[var(--color-acento)]/20 transition-colors cursor-pointer"
                         >
                           <span>Cambiar a {AGENTE.modos[claveSug].titulo}</span>
                           <span aria-hidden="true">→</span>

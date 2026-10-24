@@ -223,6 +223,16 @@ export default function App() {
     };
   }, [selectedModeKey]);
 
+  const cambiarModo = (idModo: string, historial?: any[]) => {
+    if (!idModo) return;
+    if (idModo === 'icfes' || !Array.isArray(historial) || historial.length === 0) {
+      setTransferredMessages(undefined);
+    } else {
+      setTransferredMessages(historial);
+    }
+    setSelectedModeKey(idModo);
+  };
+
   return (
     <div className={`${selectedModeKey ? 'h-[var(--app-h,100dvh)] overflow-hidden' : 'min-h-screen'} flex flex-col bg-[var(--color-fondo)] text-[var(--color-texto)] selection:bg-[#0E5C36]/20 selection:text-[#0E5C36]`}>
       {/* Encabezado Apple HIG translúcido con escudo y nombres */}
@@ -255,10 +265,8 @@ export default function App() {
               modeKey={selectedModeKey}
               estudiante={estudiante}
               initialMessages={transferredMessages}
-              onChangeModo={(newModeKey, mensajesConservar) => {
-                setTransferredMessages(mensajesConservar);
-                setSelectedModeKey(newModeKey);
-              }}
+              onCambiarModo={cambiarModo}
+              onChangeModo={cambiarModo}
               onBackToModos={() => {
                 setTransferredMessages(undefined);
                 setSelectedModeKey(null);
@@ -283,10 +291,7 @@ export default function App() {
               </button>
             </div>
             <ModosGrid
-              onSelectModo={(key) => {
-                setTransferredMessages(undefined);
-                setSelectedModeKey(key);
-              }}
+              onSelectModo={(key) => cambiarModo(key)}
             />
           </>
         )}

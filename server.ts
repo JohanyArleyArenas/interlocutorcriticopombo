@@ -455,14 +455,81 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     let fuentes: Array<{ titulo: string; url: string }> = [];
     let had429 = false;
     let detectoIdeaPrevia = false;
+    let modoSugerido: string | null = null;
+
+    // Tabla de correspondencia fija entre el nombre visible en la interfaz (y variantes) y el id interno
+    const normalizarClaveModo = (s: string): string =>
+      String(s || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+    const TABLA_CORRESPONDENCIA_MODOS: Record<string, string> = {
+      socratico: 'socratico',
+      'dialogo socratico': 'socratico',
+      explorar: 'explorar',
+      'guia de investigacion': 'explorar',
+      'guia investigacion': 'explorar',
+      investigar: 'explorar',
+      argumento: 'argumento',
+      'taller de argumentos': 'argumento',
+      'poner a prueba un argumento': 'argumento',
+      verificar: 'verificar',
+      'verificar una afirmacion': 'verificar',
+      auditar: 'auditar',
+      'auditar una respuesta de ia': 'auditar',
+      'auditar respuesta de ia': 'auditar',
+      tutor: 'tutor',
+      'tutor de matematicas fisica y quimica': 'tutor',
+      'tutor de matematicas': 'tutor',
+      escrito: 'escrito',
+      'revisar mi escrito': 'escrito',
+      icfes: 'icfes',
+      'entrenador saber 11': 'icfes',
+      'saber 11': 'icfes',
+    };
+
+    const resolverIdModo = (raw: string): string | null => {
+      const norm = normalizarClaveModo(raw).replace(/^modo\s+/, '').replace(/^cambiar\s+a(?:l\s+modo)?\s+/, '').trim();
+      if (!norm) return null;
+      if (TABLA_CORRESPONDENCIA_MODOS[norm]) return TABLA_CORRESPONDENCIA_MODOS[norm];
+      for (const [nombreNorm, idInterno] of Object.entries(TABLA_CORRESPONDENCIA_MODOS)) {
+        if (nombreNorm.length >= 5 && (norm === nombreNorm || norm.includes(nombreNorm))) {
+          return idInterno;
+        }
+      }
+      return null;
+    };
 
     const PATRON_MARCA_IDEA_INICIO = /^\s*⟦\s*idea\s*⟧[ \t]*\r?\n?/i;
     const PATRON_MARCA_IDEA_GLOBAL = /⟦\s*idea\s*⟧[ \t]*\r?\n?/gi;
+    const PATRON_MARCA_MODO_GLOBAL = /`?\s*⟦\s*modo\s*:\s*([^⟧]+?)\s*⟧\s*`?/gi;
+    const PATRON_ENLACE_MODO_MD = /\[([^\]]*)\]\(\s*\/?#?modo:([^)]+)\)/gi;
+
     const limpiarMarcaIdea = (t: string): string => {
       if (PATRON_MARCA_IDEA_INICIO.test(t) || /⟦\s*idea\s*⟧/i.test(t)) {
         detectoIdeaPrevia = true;
       }
-      return t.replace(PATRON_MARCA_IDEA_INICIO, '').replace(PATRON_MARCA_IDEA_GLOBAL, '');
+      let resultado = t
+        .replace(PATRON_MARCA_IDEA_INICIO, '')
+        .replace(PATRON_MARCA_IDEA_GLOBAL, '');
+      resultado = resultado.replace(PATRON_MARCA_MODO_GLOBAL, (_m, rawId) => {
+        const idResuelto = resolverIdModo(rawId);
+        if (idResuelto && idResuelto !== modeKey && AGENTE.modos[idResuelto]) {
+          modoSugerido = idResuelto;
+        }
+        return '';
+      });
+      resultado = resultado.replace(PATRON_ENLACE_MODO_MD, (_m, label, rawHref) => {
+        const idResuelto = resolverIdModo(rawHref) || resolverIdModo(label);
+        if (idResuelto && idResuelto !== modeKey && AGENTE.modos[idResuelto]) {
+          modoSugerido = idResuelto;
+        }
+        return '';
+      });
+      return resultado;
     };
 
     // ===== Respuesta en vivo (streaming): el texto llega al estudiante mientras se genera =====
@@ -523,12 +590,46 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         const flujo = await ai.models.generateContentStream({ model, contents, config: cfgConCorte });
         let texto = '';
         let bufferInicio = '';
+        let colaStream = '';
         let inicioResuelto = false;
         let reinicioPendiente = textoEnviado;
         let ultimo: any = null;
         let versionModelo = '';
         let primerTextoRecibido = false;
         const chunksGrounding: any[] = [];
+        const emitirFragmentoSeguro = (frag: string, esFinal = false) => {
+          colaStream += frag;
+          colaStream = limpiarMarcaIdea(colaStream);
+          if (!esFinal) {
+            // Si queda una marca '⟦' abierta al final del fragmento, espera al siguiente chunk para no mostrarla en pantalla
+            const idxMarcaAbierta = colaStream.lastIndexOf('⟦');
+            if (idxMarcaAbierta >= 0 && idxMarcaAbierta > colaStream.lastIndexOf('⟧') && colaStream.length - idxMarcaAbierta < 45) {
+              const listoParaEnviar = colaStream.slice(0, idxMarcaAbierta);
+              colaStream = colaStream.slice(idxMarcaAbierta);
+              if (listoParaEnviar) {
+                if (reinicioPendiente) {
+                  enviarEvento({ t: 'reinicio' });
+                  reinicioPendiente = false;
+                }
+                texto += listoParaEnviar;
+                textoEnviado = true;
+                enviarEvento({ t: 'delta', text: listoParaEnviar });
+              }
+              return;
+            }
+          }
+          const aEnviar = limpiarMarcaIdea(colaStream);
+          colaStream = '';
+          if (aEnviar) {
+            if (reinicioPendiente) {
+              enviarEvento({ t: 'reinicio' });
+              reinicioPendiente = false;
+            }
+            texto += aEnviar;
+            textoEnviado = true;
+            enviarEvento({ t: 'delta', text: aEnviar });
+          }
+        };
         for await (const parte of flujo) {
           if ((parte as any)?.modelVersion) versionModelo = (parte as any).modelVersion;
           const cGrounding = (parte as any)?.candidates?.[0]?.groundingMetadata?.groundingChunks;
@@ -554,45 +655,21 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
                 continue;
               }
               inicioResuelto = true;
-              const limpioInicial = limpiarMarcaIdea(bufferInicio);
+              const inicial = bufferInicio;
               bufferInicio = '';
-              if (limpioInicial) {
-                if (reinicioPendiente) {
-                  enviarEvento({ t: 'reinicio' });
-                  reinicioPendiente = false;
-                }
-                texto += limpioInicial;
-                textoEnviado = true;
-                enviarEvento({ t: 'delta', text: limpioInicial });
-              }
+              emitirFragmentoSeguro(inicial, false);
             } else {
-              const deltaLimpio = limpiarMarcaIdea(delta);
-              if (deltaLimpio) {
-                if (reinicioPendiente) {
-                  enviarEvento({ t: 'reinicio' });
-                  reinicioPendiente = false;
-                }
-                texto += deltaLimpio;
-                textoEnviado = true;
-                enviarEvento({ t: 'delta', text: deltaLimpio });
-              }
+              emitirFragmentoSeguro(delta, false);
             }
           }
         }
         if (!inicioResuelto && bufferInicio) {
-          const limpioRestante = limpiarMarcaIdea(bufferInicio);
-          if (limpioRestante) {
-            if (reinicioPendiente) {
-              enviarEvento({ t: 'reinicio' });
-              reinicioPendiente = false;
-            }
-            texto += limpioRestante;
-            textoEnviado = true;
-            enviarEvento({ t: 'delta', text: limpioRestante });
-          }
+          emitirFragmentoSeguro(bufferInicio, true);
+        } else if (colaStream) {
+          emitirFragmentoSeguro('', true);
         }
         return {
-          text: limpiarMarcaIdea(texto),
+          text: limpiarMarcaIdea(texto).trimEnd(),
           candidates: ultimo?.candidates,
           groundingChunks: chunksGrounding,
           modelVersion: versionModelo || ultimo?.modelVersion || model,
@@ -617,7 +694,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         console.log(`[Tiempo] ${model} (${nivelActual}) -> ${(response as any).modelVersion || model} en ${Date.now() - t0} ms (busqueda: ${!!modo.busqueda})`);
 
         if (response.text) {
-          replyText = limpiarMarcaIdea(response.text);
+          replyText = limpiarMarcaIdea(response.text).trimEnd();
           modeloUsado = (response as any).modelVersion || model;
 
           // Extract grounding sources if available (acumuladas en el stream o en el candidato final)
@@ -741,7 +818,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           });
 
           if (fallbackResponse.text) {
-            const textoFbLimpio = limpiarMarcaIdea(fallbackResponse.text);
+            const textoFbLimpio = limpiarMarcaIdea(fallbackResponse.text).trimEnd();
             replyText = `_Aviso: la búsqueda en Google no estuvo disponible en este momento._\n\n${textoFbLimpio}`;
             modeloUsado = (fallbackResponse as any).modelVersion || fbModel;
             fuentes = [];
@@ -789,10 +866,21 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         segundos: Math.round((Date.now() - tInicio) / 100) / 10,
       });
       if (quiereStream) {
-        enviarEvento({ t: 'fin', reply: replyText, fuentes, ...(resultadoIcfes ? { icfes: resultadoIcfes } : {}) });
+        enviarEvento({
+          t: 'fin',
+          reply: replyText,
+          fuentes,
+          ...(modoSugerido ? { modoSugerido } : {}),
+          ...(resultadoIcfes ? { icfes: resultadoIcfes } : {}),
+        });
         return res.end();
       }
-      return res.json({ reply: replyText, fuentes, ...(resultadoIcfes ? { icfes: resultadoIcfes } : {}) });
+      return res.json({
+        reply: replyText,
+        fuentes,
+        ...(modoSugerido ? { modoSugerido } : {}),
+        ...(resultadoIcfes ? { icfes: resultadoIcfes } : {}),
+      });
     }
 
     const is429 = lastError?.status === 429 || (typeof lastError?.message === 'string' && lastError.message.includes('429'));
