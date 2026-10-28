@@ -15,10 +15,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Up limit to 20MB for file uploads
+// Up limit to 50MB for multiple file uploads
 app.set('trust proxy', true);
-// Hasta 25 MB: un archivo de 15 MB ocupa unos 20 MB al convertirlo a base64
-app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Shared Gemini AI instance on the server side
 const ai = new GoogleGenAI({
@@ -35,12 +34,14 @@ export interface ChatArchivo {
   mimeType: string;
   data?: string;   // base64
   texto?: string;  // extracted text for docx, txt, md
+  esEjemploClase?: boolean;
 }
 
 export interface ChatMessagePayload {
   role: 'user' | 'model';
   text: string;
   archivo?: ChatArchivo;
+  archivos?: ChatArchivo[];
 }
 
 // ===== Registro de interacciones en Google Sheets (vía Google Forms) =====
@@ -151,8 +152,16 @@ app.post('/api/chat', async (req, res) => {
       if ((m.text || '').length > 12000) {
         return res.status(400).json({ error: 'Tu mensaje es demasiado largo. Divídelo en partes más cortas.' });
       }
-      const a = m.archivo;
-      if (a) {
+      const listaArchivosMsg: ChatArchivo[] = Array.isArray(m.archivos) && m.archivos.length > 0
+        ? m.archivos
+        : m.archivo
+        ? [m.archivo]
+        : [];
+      if (listaArchivosMsg.length > 15) {
+        return res.status(400).json({ error: 'Puedes subir hasta 15 archivos por mensaje.' });
+      }
+      for (const a of listaArchivosMsg) {
+        if (!a) continue;
         const nombreArch = String(a.nombre || '');
         const mimeArch = String(a.mimeType || '');
         if (!MIMES_PERMITIDOS.test(mimeArch) && !EXT_PERMITIDAS.test(nombreArch)) {
@@ -166,7 +175,7 @@ app.post('/api/chat', async (req, res) => {
           (cleanData && (cleanData.length > MAX_BASE64_10MB || bytesEstimados > 10 * 1024 * 1024)) ||
           (a.texto && String(a.texto).length > 10 * 1024 * 1024)
         ) {
-          return res.status(400).json({ error: 'El archivo supera el límite de 10 MB. Sube un archivo más liviano.' });
+          return res.status(400).json({ error: `El archivo «${nombreArch || 'adjunto'}» supera el límite de 10 MB.` });
         }
       }
     }
@@ -302,19 +311,29 @@ ${reglaMatematicas}
 
 El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
 
-    // Convert messages to Gemini API format (extrae en el servidor el texto de archivos .docx con mammoth)
+    // Convert messages to Gemini API format (extrae en el servidor el texto de archivos .docx con mammoth y soporta múltiples archivos)
     const contents = await Promise.all(
       slicedMessages.map(async (msg) => {
         const parts: any[] = [];
+        const archivosDeMsg: ChatArchivo[] =
+          Array.isArray(msg.archivos) && msg.archivos.length > 0
+            ? msg.archivos
+            : msg.archivo
+            ? [msg.archivo]
+            : [];
 
-        if (msg.archivo) {
-          const { mimeType, data, nombre } = msg.archivo;
-          let textoExtraido = msg.archivo.texto;
+        for (const arch of archivosDeMsg) {
+          if (!arch) continue;
+          const { mimeType, data, nombre, esEjemploClase } = arch;
+          let textoExtraido = arch.texto;
           const cleanBase64 = data ? data.replace(/^data:[^;]+;base64,/, '') : '';
           const esDocx =
             mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
             /\.docx$/i.test(String(nombre || ''));
           const esTxt = mimeType === 'text/plain' || /\.txt$/i.test(String(nombre || ''));
+          const etiquetaTipo = esEjemploClase
+            ? `[Ejemplo de clase explicado por el profesor en el salón: ${nombre}]`
+            : `[Archivo adjunto: ${nombre}]`;
 
           // Word (.docx): se extrae el texto en el servidor con mammoth y se envía como texto al modelo
           if (esDocx && cleanBase64) {
@@ -322,17 +341,18 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
               const buffer = Buffer.from(cleanBase64, 'base64');
               const resultado = await mammoth.extractRawText({ buffer } as any);
               textoExtraido = resultado.value || textoExtraido || '';
-              msg.archivo.texto = textoExtraido;
+              arch.texto = textoExtraido;
             } catch (errDocx: any) {
               console.error('[Archivo DOCX] Error al extraer texto con mammoth:', errDocx?.message || errDocx);
             }
           } else if (esTxt && cleanBase64 && !textoExtraido) {
             textoExtraido = Buffer.from(cleanBase64, 'base64').toString('utf-8');
-            msg.archivo.texto = textoExtraido;
+            arch.texto = textoExtraido;
           }
 
-          // Imágenes (JPG, PNG, WEBP) y PDF se envían a Gemini como inlineData junto con el mensaje del estudiante
+          // Imágenes (JPG, PNG, WEBP) y PDF se envían a Gemini como inlineData junto con su etiqueta
           if (cleanBase64 && (mimeType.startsWith('image/') || mimeType === 'application/pdf')) {
+            parts.push({ text: etiquetaTipo });
             parts.push({
               inlineData: {
                 mimeType,
@@ -344,7 +364,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           // Texto (.txt) o Word (.docx) extraído
           if (textoExtraido && textoExtraido.trim()) {
             parts.push({
-              text: `[Archivo adjunto: ${nombre}]\n${textoExtraido}`,
+              text: `${etiquetaTipo}\n${textoExtraido}`,
             });
           }
         }
@@ -373,24 +393,55 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     // esCuantitativo evalúa solo el último mensaje del estudiante (y, en el tutor, también si hay imagen adjunta)
     // y exige matemática real: números con operadores, ecuaciones con =, unidades con números o símbolos matemáticos.
     const ultimoMsgEst: any = [...slicedMessages].reverse().find((m: any) => m.role === 'user');
-    const textoUltimoEst = `${ultimoMsgEst?.text || ''}\n${ultimoMsgEst?.archivo?.texto || ''}`.replace(/https?:\/\/\S+/gi, ' ');
+    const archivosUltimoEst: ChatArchivo[] =
+      Array.isArray(ultimoMsgEst?.archivos) && ultimoMsgEst.archivos.length > 0
+        ? ultimoMsgEst.archivos
+        : ultimoMsgEst?.archivo
+        ? [ultimoMsgEst.archivo]
+        : [];
+    const textosArchivosUltimo = archivosUltimoEst.map((a) => a?.texto || '').join('\n');
+    const textoUltimoEst = `${ultimoMsgEst?.text || ''}\n${textosArchivosUltimo}`.replace(/https?:\/\/\S+/gi, ' ');
     const tieneImagenTutor =
-      modeKey === 'tutor' && /^image\//i.test(String(ultimoMsgEst?.archivo?.mimeType || ''));
+      modeKey === 'tutor' && archivosUltimoEst.some((a) => /^image\/|application\/pdf/i.test(String(a?.mimeType || '')));
     const patronMatematicaReal =
       /\d\s*[+\-*/^×÷<>]\s*[\da-zA-Z(]|\d\s*[a-zA-Z]\s*[+\-*/^=×÷<>]|[a-zA-Z0-9)]\s*=\s*[-+a-zA-Z0-9(√]|\d+(?:[.,]\d+)?\s*(?:m\/s(?:²|\^2)?|km\/h|kg|g\b|mg|mol|cm|mm|km|m\b|s\b|N\b|J\b|W\b|Pa\b|Hz\b|V\b|A\b|Ω|°C|K\b|mL\b|L\b|atm\b)|[√²³π∫∑±]|\\(?:frac|sqrt|cdot|times)/;
     const esCuantitativo =
       modeKey !== 'icfes' && (tieneImagenTutor || patronMatematicaReal.test(textoUltimoEst));
 
-    const llevaBusqueda = Boolean(modo.busqueda && modeKey !== 'icfes');
+    // Optimización de velocidad: adjuntar googleSearch añade varios segundos de latencia aunque el modelo no busque.
+    // Se activa siempre en 'verificar', en 'auditar' a partir del segundo turno (Fase 2/3), o cuando el mensaje
+    // menciona verificación externa, noticias, datos actuales, leyes, entidades o fuentes académicas.
+    const respuestasModeloPrevias = slicedMessages.filter((m) => m.role === 'model').length;
+    const pideDatosActualesOBusqueda =
+      /\[Verificación externa\]|\b(202[4-9]|noticia\w*|actual\w*|reciente\w*|hoy|ayer|dane|oms|unesco|ministerio|alcald[ií]a|inv[ií]as|decreto|ley\s+\d|resoluci[oó]n|cifra\w*|estad[ií]stic\w*|estudio\s+de|revista|scielo|redalyc|dialnet|scholar|doi| verifica\w*|comprueba|fuente\w*\s+oficial\w*|seg[uú]n\s+la\s+noticia)\b/i.test(
+        textoUltimoEst
+      );
+    const llevaBusqueda = Boolean(
+      modo.busqueda &&
+        modeKey !== 'icfes' &&
+        modeKey !== 'escrito' &&
+        (modeKey === 'verificar' ||
+          (modeKey === 'auditar' && respuestasModeloPrevias >= 1) ||
+          (modeKey !== 'tutor' && pideDatosActualesOBusqueda) ||
+          textoUltimoEst.includes('[Verificación externa]'))
+    );
     const tutorConCalculos = modeKey === 'tutor' && esCuantitativo;
-    // En socratico siempre se usa LOW. MEDIUM queda solo para el tutor con cálculos reales y la retroalimentación del ICFES.
+    const reclamaContradiccion =
+      respuestasModeloPrevias >= 1 &&
+      /\b(contradic\w*|contradij\w*|te\s+contradices|contradiciendo|antes\s+dijiste|hab[ií]as\s+dicho|acab(?:as|abas)\s+de\s+decir|dijiste\s+lo\s+contrario|dijiste\s+otra\s+cosa|cambiaste\s+lo\s+que|primero\s+dijiste|no\s+es\s+coherente|incoherente)\b/i.test(
+        textoUltimoEst
+      );
+    // En socratico se usa LOW salvo que el estudiante reclame una contradicción. MEDIUM queda para el tutor con cálculos reales, la retroalimentación del ICFES o auditoría de contradicciones.
     // Cuando una solicitud lleva googleSearch, se usa LOW salvo en el tutor con cálculos.
-    const usarMedium = tutorConCalculos || (!llevaBusqueda && razonarIcfes);
-    const razonar = usarMedium || modeKey === 'tutor';
+    const usarMedium = tutorConCalculos || (!llevaBusqueda && (razonarIcfes || reclamaContradiccion));
+    const razonar = usarMedium || modeKey === 'tutor' || reclamaContradiccion;
     const temperaturaBase = typeof modo.temperatura === 'number' ? modo.temperatura : 0.7;
 
     const notaCalculos = esCuantitativo
       ? '\n\nESTA CONVERSACIÓN INCLUYE CÁLCULOS: aplica con especial cuidado las reglas de PRECISIÓN EN MATEMÁTICAS Y CIENCIAS.'
+      : '';
+    const notaContradiccion = reclamaContradiccion
+      ? '\n\nAUDITORÍA DE COHERENCIA (EL ESTUDIANTE SEÑALA UNA CONTRADICCIÓN): Antes de responder, relee palabra por palabra tus propios mensajes anteriores en esta conversación y compáralos con el último. NO niegues la contradicción por inercia ni intentes justificar dos frases incompatibles: si efectivamente dijiste dos cosas opuestas, cambiaste una lista, clasificación, signo, criterio o veredicto, o aprobaste antes algo que luego rechazaste, reconócelo de inmediato con total claridad, cita brevemente qué dijiste antes y qué dijiste después, explica dónde estuvo el cruce y deja establecida una única versión coherente y exacta.'
       : '';
 
     // Recordatorio que se retira solo (todos los modos menos icfes):
@@ -417,7 +468,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       : '';
 
     // Bloque fijo al inicio + fecha de hoy y notas variables al final
-    const systemInstruction = `${bloqueFijo}\n\n${fechaLinea}${notaCalculos}${notaMemoria}${contextoIcfes}${notaRecordatorio}`;
+    const systemInstruction = `${bloqueFijo}\n\n${fechaLinea}${notaCalculos}${notaContradiccion}${notaMemoria}${contextoIcfes}${notaRecordatorio}`;
 
     const configBase: any = {
       systemInstruction,
@@ -570,9 +621,9 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     };
     // Con streaming devuelve un objeto con la misma forma que generateContent (text, candidates, groundingChunks, modelVersion)
     const generar = async (model: string, cfg: any, nivelLog: string): Promise<any> => {
-      // Si el primer texto no llega en 12 s, se corta y pasa al modelo de respaldo (gemini-flash-lite-latest con LOW)
+      // Si el primer texto no llega a tiempo (8,5 s en conversación normal; 11 s cuando lleva googleSearch o páginas PDF), pasa rápido al modelo de respaldo (gemini-flash-lite-latest con LOW)
       const controlador = new AbortController();
-      const limiteMs = 12_000;
+      const limiteMs = llevaBusqueda || partesIcfes.length > 0 || archivosUltimoEst.length > 0 ? 11_000 : 8_500;
       const temporizador = setTimeout(() => controlador.abort(), limiteMs);
       const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
       const tInicioFlujo = Date.now();
@@ -880,17 +931,25 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       // Registro de la interacción en Google Sheets (no bloquea la respuesta)
       const ultimoEst = mensajesEst[mensajesEst.length - 1];
       const textoUltimo = ultimoEst?.text || '';
+      const archivosRegistro: ChatArchivo[] =
+        Array.isArray(ultimoEst?.archivos) && ultimoEst.archivos.length > 0
+          ? ultimoEst.archivos
+          : ultimoEst?.archivo
+          ? [ultimoEst.archivo]
+          : [];
       const tieneIdeaPrevia = detectoIdeaPrevia || textoUltimo.includes('[Mi idea previa]');
       const tieneVerificacion = textoUltimo.startsWith('[Verificación externa]');
-      const tieneArchivo = Boolean(ultimoEst?.archivo && modeKey !== 'icfes');
+      const tieneArchivo = Boolean(archivosRegistro.length > 0 && modeKey !== 'icfes');
       const sufijoModo =
         (tieneIdeaPrevia ? ' · idea previa' : '') +
         (tieneVerificacion ? ' · verificación' : '') +
         (enviarRecordatorioVerificacion ? ' · recordatorio' : '') +
         (tieneArchivo ? ' · archivo' : '');
       const infoArchivoRegistro =
-        tieneArchivo && ultimoEst?.archivo
-          ? `${ultimoEst.archivo.nombre} (${ultimoEst.archivo.mimeType || 'archivo'})`
+        tieneArchivo
+          ? archivosRegistro
+              .map((a) => `${a.nombre} (${a.mimeType || 'archivo'})`)
+              .join(', ')
           : '';
       const fuentesRegistro = [
         ...(infoArchivoRegistro ? [infoArchivoRegistro] : []),

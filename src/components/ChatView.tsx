@@ -172,6 +172,7 @@ export interface ChatArchivo {
   data?: string;   // base64
   texto?: string;  // texto extraido
   tamano?: string;
+  esEjemploClase?: boolean;
 }
 
 export interface ChatMessage {
@@ -179,6 +180,7 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   archivo?: ChatArchivo;
+  archivos?: ChatArchivo[];
   fuentes?: Array<{ titulo: string; url: string }>;
   modoSugerido?: string;
   avisoSistema?: boolean;
@@ -199,12 +201,14 @@ interface ChatViewProps {
 }
 
 interface AttachedFilePreview {
+  id: string;
   file: File;
   nombre: string;
   mimeType: string;
   tamano: string;
   data?: string;
   texto?: string;
+  esEjemploClase?: boolean;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onCambiarModo, onChangeModo, initialMessages, estudiante }) => {
@@ -278,7 +282,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onCa
       });
     fnCambiar(destino, historialParaNuevoModo);
   };
-  const [attachedFile, setAttachedFile] = useState<AttachedFilePreview | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFilePreview[]>([]);
+  const [ejemplosClaseFiles, setEjemplosClaseFiles] = useState<AttachedFilePreview[]>([]);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -332,6 +337,7 @@ if (clave === 'tutor') return base;
     return cacheIdeasRef.current[k];
   };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const ejemplosClaseInputRef = useRef<HTMLInputElement | null>(null);
   // Identificador de esta conversación (para agrupar los turnos en la hoja de registro)
   const sesionRef = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
 
@@ -433,7 +439,10 @@ if (clave === 'tutor') return base;
     const lineas: string[] = [`Interlocutor Crítico — ${modo.titulo}`, `Código: ${estudiante || ''}`, `Fecha: ${fecha}`, ''];
     messages.forEach((m) => {
       lineas.push(m.role === 'user' ? 'YO:' : 'INTERLOCUTOR CRÍTICO:');
-      if (m.archivo) lineas.push(`[Archivo: ${m.archivo.nombre}]`);
+      const listaArch = Array.isArray(m.archivos) && m.archivos.length > 0 ? m.archivos : m.archivo ? [m.archivo] : [];
+      listaArch.forEach((a) => {
+        lineas.push(`[${a.esEjemploClase ? 'Ejemplo de clase' : 'Archivo'}: ${a.nombre}]`);
+      });
       lineas.push(m.text || '', '');
     });
     if (cierreEstado === 'listo') {
@@ -607,24 +616,20 @@ if (clave === 'tutor') return base;
     }
   };
 
-  const processFile = async (file: File) => {
-    activarAvisoPrivacidadUnaVez();
-
+  const leerArchivoIndividual = async (file: File, esEjemploClase = false): Promise<AttachedFilePreview | null> => {
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'txt', 'docx'];
     if (!allowed.includes(ext)) {
       setErrorMessage(
-        'Formato de archivo no válido. Solo puedes subir imágenes (JPG, PNG, WEBP), PDF, texto (.txt) o Word (.docx).'
+        `«${file.name}»: formato no válido. Solo puedes subir imágenes (JPG, PNG, WEBP), PDF, texto (.txt) o Word (.docx).`
       );
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
+      return null;
     }
 
-    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB por archivo
     if (file.size > MAX_SIZE) {
-      setErrorMessage('El archivo supera el límite de 10 MB. Sube un archivo más liviano.');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
+      setErrorMessage(`«${file.name}» supera el límite de 10 MB por archivo.`);
+      return null;
     }
 
     const mimePorExt: Record<string, string> = {
@@ -637,38 +642,59 @@ if (clave === 'tutor') return base;
       docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     };
 
+    let texto: string | undefined = undefined;
+    let data: string | undefined = undefined;
+
+    if (ext === 'txt') {
+      texto = await file.text();
+    } else {
+      data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      file,
+      nombre: file.name,
+      mimeType: mimePorExt[ext] || file.type || `application/${ext}`,
+      tamano: formatFileSize(file.size),
+      data,
+      texto,
+      esEjemploClase,
+    };
+  };
+
+  const processFiles = async (filesList: FileList | File[], esEjemploClase = false) => {
+    activarAvisoPrivacidadUnaVez();
+    const archivosArray = Array.from(filesList || []);
+    if (archivosArray.length === 0) return;
+
     setIsProcessingFile(true);
     try {
-      let texto: string | undefined = undefined;
-      let data: string | undefined = undefined;
-
-      if (ext === 'txt') {
-        texto = await file.text();
-      } else {
-        // Imágenes, PDF y Word (.docx): se leen en base64 (el servidor extrae el texto de .docx con mammoth)
-        data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+      const procesados: AttachedFilePreview[] = [];
+      for (const f of archivosArray) {
+        const item = await leerArchivoIndividual(f, esEjemploClase);
+        if (item) procesados.push(item);
       }
-
-      setAttachedFile({
-        file,
-        nombre: file.name,
-        mimeType: mimePorExt[ext] || file.type || `application/${ext}`,
-        tamano: formatFileSize(file.size),
-        data,
-        texto,
-      });
-      setErrorMessage(null);
+      if (procesados.length > 0) {
+        if (esEjemploClase) {
+          setEjemplosClaseFiles((prev) => [...prev, ...procesados].slice(0, 12));
+        } else {
+          setAttachedFiles((prev) => [...prev, ...procesados].slice(0, 12));
+        }
+        setErrorMessage(null);
+      }
     } catch (err: any) {
-      console.error('Error al procesar archivo:', err);
-      setErrorMessage('No se pudo leer el archivo. Intenta de nuevo.');
+      console.error('Error al procesar archivos:', err);
+      setErrorMessage('No se pudieron leer algunos archivos. Intenta de nuevo.');
     } finally {
       setIsProcessingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (ejemplosClaseInputRef.current) ejemplosClaseInputRef.current.value = '';
     }
   };
 
@@ -692,6 +718,7 @@ if (clave === 'tutor') return base;
           role: msg.role,
           text: msg.text,
           archivo: msg.archivo,
+          archivos: msg.archivos,
           icfes: msg.icfes,
         }));
 
@@ -867,27 +894,62 @@ if (clave === 'tutor') return base;
   }, []);
 
   const handleSendMessage = async (forzadoArg?: any) => {
-    const f: { texto: string; archivo?: ChatArchivo; icfes?: ChatMessage['icfes']; reintento?: boolean } | undefined =
-      forzadoArg && typeof forzadoArg.texto === 'string' ? forzadoArg : undefined;
+    const f: {
+      texto: string;
+      archivo?: ChatArchivo;
+      archivos?: ChatArchivo[];
+      icfes?: ChatMessage['icfes'];
+      reintento?: boolean;
+    } | undefined = forzadoArg && typeof forzadoArg.texto === 'string' ? forzadoArg : undefined;
     const trimmed = (f ? f.texto : inputText).trim();
-    if ((!trimmed && !attachedFile && !f?.archivo) || isLoading || isProcessingFile || enviandoRef.current) return;
+    const totalAdjuntosPendientes = attachedFiles.length + ejemplosClaseFiles.length;
+    if (
+      (!trimmed && totalAdjuntosPendientes === 0 && !f?.archivo && (!f?.archivos || f.archivos.length === 0)) ||
+      isLoading ||
+      isProcessingFile ||
+      enviandoRef.current
+    )
+      return;
 
-    let userArchivo: ChatArchivo | undefined = f?.archivo;
-    if (attachedFile && !f) {
-      userArchivo = {
-        nombre: attachedFile.nombre,
-        mimeType: attachedFile.mimeType,
-        data: attachedFile.data,
-        texto: attachedFile.texto,
-        tamano: attachedFile.tamano,
-      };
+    let userArchivos: ChatArchivo[] = [];
+    if (f) {
+      if (Array.isArray(f.archivos) && f.archivos.length > 0) {
+        userArchivos = f.archivos;
+      } else if (f.archivo) {
+        userArchivos = [f.archivo];
+      }
+    } else {
+      const deEjemplosClase: ChatArchivo[] = ejemplosClaseFiles.map((a) => ({
+        nombre: a.nombre,
+        mimeType: a.mimeType,
+        data: a.data,
+        texto: a.texto,
+        tamano: a.tamano,
+        esEjemploClase: true,
+      }));
+      const deNormales: ChatArchivo[] = attachedFiles.map((a) => ({
+        nombre: a.nombre,
+        mimeType: a.mimeType,
+        data: a.data,
+        texto: a.texto,
+        tamano: a.tamano,
+        esEjemploClase: Boolean(a.esEjemploClase),
+      }));
+      userArchivos = [...deEjemplosClase, ...deNormales];
     }
+
+    const tieneEjemplosClaseEnEsteTurno = userArchivos.some((a) => a.esEjemploClase);
+    const notaEjemplosClase =
+      tieneEjemplosClaseEnEsteTurno && !trimmed.includes('[Ejemplos de clase del profesor]')
+        ? `[Ejemplos de clase del profesor: guíame siguiendo exactamente el mismo método, notación y orden de pasos de estos ejercicios resueltos en el salón]\n${trimmed}`.trim()
+        : trimmed;
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      text: trimmed,
-      archivo: userArchivo,
+      text: notaEjemplosClase,
+      archivo: userArchivos[0],
+      archivos: userArchivos.length > 0 ? userArchivos : undefined,
       icfes: f ? f.icfes : esIcfes && preguntaActiva ? { id: preguntaActiva.id, accion: 'conversar' } : undefined,
       timestamp: Date.now(),
     };
@@ -898,7 +960,8 @@ if (clave === 'tutor') return base;
       setInputText('');
       setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS_CAMPO.length);
       prevVacioRef.current = true;
-      setAttachedFile(null);
+      setAttachedFiles([]);
+      setEjemplosClaseFiles([]);
       setMostrarAvisoPrivacidadArchivo(false);
     }
 
@@ -995,7 +1058,13 @@ const aplicarResultadoIcfes = (r: { id: string; clave: string; correcta: boolean
 const reintentar = () => {
   const ultimo = messages[messages.length - 1];
   if (ultimo?.role === 'user') {
-    handleSendMessage({ texto: ultimo.text, archivo: ultimo.archivo, icfes: ultimo.icfes, reintento: true });
+    handleSendMessage({
+      texto: ultimo.text,
+      archivo: ultimo.archivo,
+      archivos: ultimo.archivos,
+      icfes: ultimo.icfes,
+      reintento: true,
+    });
   } else if (esIcfes && ultimaAreaRef.current) {
     pedirPregunta(ultimaAreaRef.current);
   } else {
@@ -1026,8 +1095,8 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!modo.adjuntos) return;
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await processFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processFiles(e.dataTransfer.files, false);
     }
   };
 
@@ -1490,26 +1559,39 @@ if (msg.selector) {
             }
 
             if (isUser) {
+              const listaArchivosMsg =
+                Array.isArray(msg.archivos) && msg.archivos.length > 0
+                  ? msg.archivos
+                  : msg.archivo
+                  ? [msg.archivo]
+                  : [];
               return (
                 <div key={msg.id} data-role="user" className="flex flex-col items-end message-appear">
-                  {/* Ficha del archivo adjunto en el mensaje del estudiante */}
-                  {msg.archivo && (
-                    <div className="mb-2 max-w-[85%] sm:max-w-[70%] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-xs">
-                      {msg.archivo.mimeType.startsWith('image/') ? (
-                        <ImageIcon className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
-                      ) : (
-                        <FileText className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
-                      )}
-                      <div className="truncate text-left">
-                        <p className="text-[13px] font-medium text-[var(--color-texto)] truncate">
-                          {msg.archivo.nombre}
-                        </p>
-                        {msg.archivo.tamano && (
-                          <p className="text-[11px] text-[var(--color-secundario)]">
-                            {msg.archivo.tamano}
-                          </p>
-                        )}
-                      </div>
+                  {/* Fichas de los archivos adjuntos en el mensaje del estudiante */}
+                  {listaArchivosMsg.length > 0 && (
+                    <div className="mb-2 max-w-[85%] sm:max-w-[75%] flex flex-wrap justify-end gap-1.5">
+                      {listaArchivosMsg.map((arch, idxArch) => (
+                        <div
+                          key={`${arch.nombre}-${idxArch}`}
+                          className="bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-xs max-w-full"
+                        >
+                          {arch.mimeType.startsWith('image/') ? (
+                            <ImageIcon className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
+                          ) : (
+                            <FileText className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
+                          )}
+                          <div className="truncate text-left">
+                            <p className="text-[13px] font-medium text-[var(--color-texto)] truncate">
+                              {arch.esEjemploClase ? `Ejemplo de clase: ${arch.nombre}` : arch.nombre}
+                            </p>
+                            {arch.tamano && (
+                              <p className="text-[11px] text-[var(--color-secundario)]">
+                                {arch.tamano}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -1587,7 +1669,75 @@ if (msg.selector) {
                     {esIcfes && (
 <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} areaActual={preguntaActiva?.area} />
 )}
-{sinMensajes && (ejemplos.length > 0 || modeKey === 'tutor' || modeKey === 'escrito') && (
+
+                    {/* Apartado especial propuesto por el Prof. Sergio en el Tutor: subir ejercicios desarrollados en clase para que la IA explique con el mismo método del profesor */}
+                    {modeKey === 'tutor' && modo.adjuntos && (
+                      <div className="mt-4 rounded-2xl border border-[var(--color-acento)]/30 bg-[var(--color-acento)]/[0.06] p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[14px] font-semibold text-[var(--color-texto)] leading-snug">
+                              ¿Tienes ejercicios resueltos en clase por tu profesor? (opcional)
+                            </p>
+                            <p className="text-[13px] text-[var(--color-secundario)] leading-relaxed mt-0.5">
+                              Sube fotos de tu cuaderno, del tablero o de la guía hecha en el salón. El tutor copiará ese mismo método y orden de pasos para explicarte tal como enseña tu profesor.
+                            </p>
+                          </div>
+                          <input
+                            type="file"
+                            ref={ejemplosClaseInputRef}
+                            multiple
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files.length > 0) {
+                                processFiles(e.target.files, true);
+                              }
+                            }}
+                            accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.docx"
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              activarAvisoPrivacidadUnaVez();
+                              ejemplosClaseInputRef.current?.click();
+                            }}
+                            disabled={isLoading || isProcessingFile}
+                            className="inline-flex items-center justify-center gap-2 text-[13px] font-semibold px-3.5 py-2 min-h-[40px] rounded-xl border border-[var(--color-acento)]/40 bg-[var(--color-superficie)] text-[var(--color-acento)] hover:bg-[var(--color-acento)]/10 transition-colors shrink-0"
+                          >
+                            <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
+                            <span>Subir ejemplos de clase</span>
+                          </button>
+                        </div>
+
+                        {ejemplosClaseFiles.length > 0 && (
+                          <div className="mt-3 pt-2.5 border-t border-[var(--color-acento)]/20 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[12px] font-medium text-[var(--color-acento)] mr-1">
+                              Ejemplos del salón listos ({ejemplosClaseFiles.length}):
+                            </span>
+                            {ejemplosClaseFiles.map((arch) => (
+                              <div
+                                key={arch.id}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-superficie)] border border-[var(--color-acento)]/35 text-[12px] text-[var(--color-texto)]"
+                              >
+                                <span className="truncate max-w-[180px] font-medium">{arch.nombre}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEjemplosClaseFiles((prev) => prev.filter((item) => item.id !== arch.id))
+                                  }
+                                  className="text-[var(--color-secundario)] hover:text-[var(--color-texto)] p-0.5"
+                                  title="Quitar ejemplo de clase"
+                                  aria-label={`Quitar ${arch.nombre}`}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {sinMensajes && (ejemplos.length > 0 || modeKey === 'tutor' || modeKey === 'escrito') && (
                       <div className="flex flex-wrap gap-2 mt-3">
                         {ejemplos.map((ej) => (
                           <button
@@ -1621,7 +1771,7 @@ if (msg.selector) {
                             className="inline-flex items-center justify-center gap-2 text-[14px] font-medium px-4 py-2 min-h-[44px] rounded-2xl bg-[var(--color-acento)] text-white hover:opacity-90 transition-opacity"
                           >
                             <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
-                            <span>{modeKey === 'tutor' ? 'Subir foto del ejercicio' : 'Subir mi escrito'}</span>
+                            <span>{modeKey === 'tutor' ? 'Subir ejercicio por resolver' : 'Subir mi escrito'}</span>
                           </button>
                         )}
                       </div>
@@ -1810,29 +1960,61 @@ Cambiar de área
       {/* Campo de mensaje: tipo cápsula, flotante y centrado abajo (max-width 720px), radio 28px, fondo superficie, sombra suave, borde 1px #D2D2D7 */}
       <div className="zona-entrada px-3 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 shrink-0 bg-transparent">
         <div className="max-w-[720px] mx-auto relative flex flex-col">
-          {/* Ficha de archivo adjunto previo al envío */}
-          {attachedFile && (
-            <div className="mb-2 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--color-superficie)] border border-[var(--color-separador)] shadow-xs self-start message-appear">
-              {attachedFile.mimeType.startsWith('image/') ? (
-                <ImageIcon className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
-              ) : (
-                <FileText className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
-              )}
-              <span className="text-[13px] font-medium text-[var(--color-texto)] truncate max-w-[220px]">
-                {attachedFile.nombre}
-              </span>
-              <span className="text-[11px] text-[var(--color-secundario)]">
-                ({attachedFile.tamano})
-              </span>
-              <button
-                type="button"
-                onClick={() => setAttachedFile(null)}
-                className="ml-1 text-[var(--color-secundario)] hover:text-[var(--color-texto)] p-0.5"
-                title="Quitar archivo"
-                aria-label="Quitar archivo"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+          {/* Fichas de archivos adjuntos previos al envío (soporta varios archivos y ejemplos de clase) */}
+          {(attachedFiles.length > 0 || ejemplosClaseFiles.length > 0) && (
+            <div className="mb-2 flex flex-wrap items-center gap-1.5 self-start message-appear">
+              {ejemplosClaseFiles.map((arch) => (
+                <div
+                  key={arch.id}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-acento)]/10 border border-[var(--color-acento)]/35 shadow-xs"
+                >
+                  {arch.mimeType.startsWith('image/') ? (
+                    <ImageIcon className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
+                  )}
+                  <span className="text-[12px] font-semibold text-[var(--color-acento)]">Clase:</span>
+                  <span className="text-[13px] font-medium text-[var(--color-texto)] truncate max-w-[180px]">
+                    {arch.nombre}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEjemplosClaseFiles((prev) => prev.filter((item) => item.id !== arch.id))}
+                    className="ml-0.5 text-[var(--color-secundario)] hover:text-[var(--color-texto)] p-0.5"
+                    title="Quitar archivo"
+                    aria-label={`Quitar ${arch.nombre}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              {attachedFiles.map((arch) => (
+                <div
+                  key={arch.id}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--color-superficie)] border border-[var(--color-separador)] shadow-xs"
+                >
+                  {arch.mimeType.startsWith('image/') ? (
+                    <ImageIcon className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
+                  )}
+                  <span className="text-[13px] font-medium text-[var(--color-texto)] truncate max-w-[200px]">
+                    {arch.nombre}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-secundario)]">
+                    ({arch.tamano})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFiles((prev) => prev.filter((item) => item.id !== arch.id))}
+                    className="ml-0.5 text-[var(--color-secundario)] hover:text-[var(--color-texto)] p-0.5"
+                    title="Quitar archivo"
+                    aria-label={`Quitar ${arch.nombre}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
@@ -1844,15 +2026,16 @@ Cambiar de área
             }}
             className="w-full min-h-[52px] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[28px] shadow-sm px-2.5 py-1.5 flex items-center gap-2 transition-all"
           >
-            {/* Input para adjuntar archivo (solo en modos con adjuntos=true) */}
+            {/* Input para adjuntar uno o varios archivos (solo en modos con adjuntos=true) */}
             {modo.adjuntos && (
               <>
                 <input
                   type="file"
                   ref={fileInputRef}
+                  multiple
                   onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      processFile(e.target.files[0]);
+                    if (e.target.files && e.target.files.length > 0) {
+                      processFiles(e.target.files, false);
                     }
                   }}
                   accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.docx"
@@ -1866,8 +2049,8 @@ Cambiar de área
                   }}
                   disabled={isLoading || isProcessingFile}
                   className="w-[38px] h-[38px] p-0 rounded-full flex items-center justify-center self-center text-[var(--color-secundario)] hover:text-[var(--color-texto)] hover:bg-[var(--color-fondo)] transition-colors shrink-0 leading-none"
-                  title="Adjuntar archivo (JPG, PNG, WEBP, PDF, TXT, DOCX — máx. 10 MB)"
-                  aria-label="Adjuntar archivo"
+                  title="Adjuntar uno o varios archivos (JPG, PNG, WEBP, PDF, TXT, DOCX — máx. 10 MB c/u)"
+                  aria-label="Adjuntar archivos"
                 >
                   <Paperclip className="w-5 h-5 block shrink-0" />
                 </button>
@@ -1889,9 +2072,15 @@ Cambiar de área
             {/* Botón enviar circular dentro del campo a la derecha (verde, icono flecha hacia arriba, deshabilitado y gris si está vacío) */}
             <button
               type="submit"
-              disabled={(!inputText.trim() && !attachedFile) || isLoading || isProcessingFile}
+              disabled={
+                (!inputText.trim() && attachedFiles.length === 0 && ejemplosClaseFiles.length === 0) ||
+                isLoading ||
+                isProcessingFile
+              }
               className={`w-[38px] h-[38px] p-0 rounded-full flex items-center justify-center self-center shrink-0 leading-none transition-all ${
-                (inputText.trim() || attachedFile) && !isLoading && !isProcessingFile
+                (inputText.trim() || attachedFiles.length > 0 || ejemplosClaseFiles.length > 0) &&
+                !isLoading &&
+                !isProcessingFile
                   ? 'bg-[#0E5C36] dark:bg-[#2E9E64] text-white cursor-pointer active:scale-95 shadow-xs'
                   : 'bg-[var(--color-separador)]/50 text-[var(--color-secundario)] cursor-not-allowed opacity-60'
               }`}
