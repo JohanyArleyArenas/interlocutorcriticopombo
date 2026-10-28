@@ -253,7 +253,7 @@ PEDIR LA IDEA DEL ESTUDIANTE PRIMERO Y MARCA ⟦idea⟧
 REGLAS DEL TALLER
 - Una etapa por respuesta. Respuestas breves (máximo unas 300 palabras). Termina SIEMPRE con una sola tarea concreta para el estudiante (precisar la tesis, reformular una premisa, dar un ejemplo, responder una objeción).
 - Al inicio de cada respuesta indica la etapa en que van, por ejemplo: «Etapa 2 de 5 · Falacias».
-- Cita la frase exacta del estudiante cuando señales un problema. Nombra el concepto (la falacia, el sesgo) y explícalo en una línea con lenguaje claro para grados 10.° y 11.°.
+- Cita la frase exacta del estudiante cuando señales un problema. Nombra el concepto (la falacia, el sesgo) y explícalo en una línea con lenguaje claro y adaptado al grado del estudiante.
 - No reescribas el argumento por él ni le entregues la versión corregida. Si necesita ver cómo se hace un arreglo, muéstralo con un ejemplo sobre otro tema, nunca sobre el suyo.
 - Evalúas el razonamiento, no la postura. Una tesis con la que alguien discrepa puede estar bien argumentada, y una tesis aceptada por todos puede estar mal sostenida. En temas políticos, religiosos o morales no tomes partido: aplica el mismo rigor a cualquier posición.
 - No repitas observaciones ya resueltas. Cuando el estudiante corrija algo, reconócelo en una línea y avanza.
@@ -566,7 +566,7 @@ Si en la conversación el estudiante pide algo ajeno al entrenamiento Saber 11 q
         'Recibes observaciones por rondas: estructura, párrafos, oraciones y ortografía.',
         'Corriges tú cada versión; el agente no la reescribe.',
       ],
-      busqueda: true,
+      busqueda: false,
       adjuntos: true,
       temperatura: 0.3,
       maxTokens: 2500,

@@ -218,7 +218,7 @@ app.post('/api/chat', async (req, res) => {
     const avisoFecha = 'Tu conocimiento de entrenamiento tiene una fecha de corte anterior a hoy. No trates como error, dato futuro, anacronismo ni invención ninguna fecha, persona, cargo, acontecimiento o publicación igual o anterior a la FECHA DE HOY solo porque no la conoces.';
     const fechaLinea =
       modeKey === 'verificar'
-        ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} Usa la búsqueda de Google para verificar la afirmación con fuentes reales; si no aparece ningún comunicado ni noticia sobre el hecho puntual, dilo y no inventes detalles.`
+        ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} Si el estudiante aún no ha compartido su sospecha o intuición sobre la afirmación, pídesela primero sin dar el veredicto todavía; una vez haya dicho qué sospecha, usa la búsqueda de Google para verificar con fuentes reales y, si no aparece ningún comunicado ni noticia sobre el hecho puntual, dilo explícitamente sin inventar contextos ni detalles.`
         : modo.busqueda
         ? `FECHA DE HOY: ${fechaHoy}. ${avisoFecha} IMPORTANTE SOBRE BÚSQUEDA: NO ejecutes googleSearch para conceptos escolares estables (como fotosíntesis, ecuaciones, física, química, gramática o filosofía), ni al pedir la idea inicial del estudiante, ni al analizar la estructura, falacias o sesgos de una tesis. Usa googleSearch únicamente si es indispensable comprobar un dato actual específico.`
         : `FECHA DE HOY: ${fechaHoy}. ${avisoFecha}`;
@@ -402,16 +402,38 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     const textosArchivosUltimo = archivosUltimoEst.map((a) => a?.texto || '').join('\n');
     const textoUltimoEst = `${ultimoMsgEst?.text || ''}\n${textosArchivosUltimo}`.replace(/https?:\/\/\S+/gi, ' ');
     const tieneImagenTutor =
-      modeKey === 'tutor' && archivosUltimoEst.some((a) => /^image\/|application\/pdf/i.test(String(a?.mimeType || '')));
+      modeKey === 'tutor' &&
+      slicedMessages.some((m: any) => {
+        const archs: ChatArchivo[] =
+          Array.isArray(m?.archivos) && m.archivos.length > 0
+            ? m.archivos
+            : m?.archivo
+            ? [m.archivo]
+            : [];
+        return archs.some((a) => /^image\/|application\/pdf/i.test(String(a?.mimeType || '')));
+      });
     const patronMatematicaReal =
       /\d\s*[+\-*/^×÷<>]\s*[\da-zA-Z(]|\d\s*[a-zA-Z]\s*[+\-*/^=×÷<>]|[a-zA-Z0-9)]\s*=\s*[-+a-zA-Z0-9(√]|\d+(?:[.,]\d+)?\s*(?:m\/s(?:²|\^2)?|km\/h|kg|g\b|mg|mol|cm|mm|km|m\b|s\b|N\b|J\b|W\b|Pa\b|Hz\b|V\b|A\b|Ω|°C|K\b|mL\b|L\b|atm\b)|[√²³π∫∑±]|\\(?:frac|sqrt|cdot|times)/;
+    const textoRecienteTutor =
+      modeKey === 'tutor'
+        ? slicedMessages
+            .slice(-6)
+            .map((m: any) => String(m?.text || ''))
+            .join('\n')
+            .replace(/https?:\/\/\S+/gi, ' ')
+        : textoUltimoEst;
     const esCuantitativo =
-      modeKey !== 'icfes' && (tieneImagenTutor || patronMatematicaReal.test(textoUltimoEst));
+      modeKey !== 'icfes' &&
+      (tieneImagenTutor || patronMatematicaReal.test(textoUltimoEst) || (modeKey === 'tutor' && patronMatematicaReal.test(textoRecienteTutor)));
 
     // Optimización de velocidad: adjuntar googleSearch añade varios segundos de latencia aunque el modelo no busque.
-    // Se activa siempre en 'verificar', en 'auditar' a partir del segundo turno (Fase 2/3), o cuando el mensaje
-    // menciona verificación externa, noticias, datos actuales, leyes, entidades o fuentes académicas.
+    // En 'verificar', si es el primer turno y el estudiante aún no ha dicho su sospecha (solo pegó la afirmación),
+    // no adjuntamos googleSearch para que el agente pida primero su sospecha en <2 s sin saltarse el paso pedagógico.
     const respuestasModeloPrevias = slicedMessages.filter((m) => m.role === 'model').length;
+    const incluyeSospechaVerificar =
+      /\[Mi idea previa\]|\[Verificación externa\]|\b(creo\s+que|pienso\s+que|me\s+parece|sospecho|suena\s+a|es\s+fals[oa]|es\s+verdader[oa]|es\s+mentira|es\s+enga[ñn]os[oa]|dudo|inventad[oa]|exagerad[oa]|porque\s+no\s+hay)\b/i.test(
+        textoUltimoEst
+      );
     const pideDatosActualesOBusqueda =
       /\[Verificación externa\]|\b(202[4-9]|noticia\w*|actual\w*|reciente\w*|hoy|ayer|dane|oms|unesco|ministerio|alcald[ií]a|inv[ií]as|decreto|ley\s+\d|resoluci[oó]n|cifra\w*|estad[ií]stic\w*|estudio\s+de|revista|scielo|redalyc|dialnet|scholar|doi| verifica\w*|comprueba|fuente\w*\s+oficial\w*|seg[uú]n\s+la\s+noticia)\b/i.test(
         textoUltimoEst
@@ -420,9 +442,9 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       modo.busqueda &&
         modeKey !== 'icfes' &&
         modeKey !== 'escrito' &&
-        (modeKey === 'verificar' ||
+        ((modeKey === 'verificar' && (respuestasModeloPrevias >= 1 || incluyeSospechaVerificar)) ||
           (modeKey === 'auditar' && respuestasModeloPrevias >= 1) ||
-          (modeKey !== 'tutor' && pideDatosActualesOBusqueda) ||
+          (modeKey !== 'tutor' && modeKey !== 'verificar' && pideDatosActualesOBusqueda) ||
           textoUltimoEst.includes('[Verificación externa]'))
     );
     const tutorConCalculos = modeKey === 'tutor' && esCuantitativo;
@@ -621,16 +643,19 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     };
     // Con streaming devuelve un objeto con la misma forma que generateContent (text, candidates, groundingChunks, modelVersion)
     const generar = async (model: string, cfg: any, nivelLog: string): Promise<any> => {
-      // Si el primer texto no llega a tiempo (8,5 s en conversación normal; 11 s cuando lleva googleSearch o páginas PDF), pasa rápido al modelo de respaldo (gemini-flash-lite-latest con LOW)
+      // Si el primer texto no llega a tiempo (8,5 s en conversación normal; 11 s cuando lleva googleSearch o páginas PDF), pasa rápido al modelo de respaldo (gemini-flash-lite-latest con LOW).
+      // Además, un temporizador total de 38 s evita que un stream congelado a mitad de respuesta deje colgada la interfaz.
       const controlador = new AbortController();
       const limiteMs = llevaBusqueda || partesIcfes.length > 0 || archivosUltimoEst.length > 0 ? 11_000 : 8_500;
       const temporizador = setTimeout(() => controlador.abort(), limiteMs);
+      const temporizadorTotal = setTimeout(() => controlador.abort(), 38_000);
       const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
       const tInicioFlujo = Date.now();
       try {
         if (!quiereStream) {
           const r = await ai.models.generateContent({ model, contents, config: cfgConCorte });
           clearTimeout(temporizador);
+          clearTimeout(temporizadorTotal);
           const msPrimerTexto = Date.now() - tInicioFlujo;
           console.log(`[Primer texto] ${(r as any)?.modelVersion || model} (${nivelLog}) en ${msPrimerTexto} ms (modo: ${modeKey})`);
           registrarTiempo({ modo: modeKey, modelo: (r as any)?.modelVersion || model, primerTextoMs: msPrimerTexto, razonar: usarMedium, adjuntos: partesIcfes.length });
@@ -733,6 +758,7 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         };
       } finally {
         clearTimeout(temporizador);
+        clearTimeout(temporizadorTotal);
       }
     };
 

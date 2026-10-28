@@ -40,7 +40,8 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
       setAviso('Elige tu curso.');
       return;
     }
-    if (curso !== 'Otro' && !numeroLista) {
+    const sinLista = curso === 'Otro' || curso === 'DOCENTE';
+    if (!sinLista && !numeroLista) {
       setAviso('Elige tu número de lista.');
       return;
     }
@@ -49,12 +50,13 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
       return;
     }
 
-    const codigo = curso === 'Otro' ? 'VISITA' : `${curso}-${numeroLista}`;
+    const codigo = curso === 'Otro' ? 'VISITA' : curso === 'DOCENTE' ? 'DOCENTE' : `${curso}-${numeroLista}`;
     guardarEstudiante(codigo);
     onListo(codigo);
   };
 
-  const botonHabilitado = acepto && !!curso && (curso === 'Otro' || !!numeroLista);
+  const sinLista = curso === 'Otro' || curso === 'DOCENTE';
+  const botonHabilitado = acepto && !!curso && (sinLista || !!numeroLista);
 
   return (
     <div className="flex-1 flex items-center justify-center px-4 py-8 sm:py-12">
@@ -75,7 +77,7 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
         <div className="flex flex-col sm:flex-row gap-3 pt-1">
           <div className="flex-1">
             <label htmlFor="curso-estudiante" className="block text-[13px] font-medium text-[var(--color-secundario)] mb-1.5">
-              Curso
+              Curso o rol en el Liceo
             </label>
             <select
               id="curso-estudiante"
@@ -91,11 +93,17 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
               <option value="1002">1002 (Grado 10°)</option>
               <option value="1101">1101 (Grado 11°)</option>
               <option value="1102">1102 (Grado 11°)</option>
-              <option value="Otro">Otro (docente o visitante)</option>
+              <option value="901">Grado 9°</option>
+              <option value="801">Grado 8°</option>
+              <option value="701">Grado 7°</option>
+              <option value="601">Grado 6°</option>
+              <option value="PRIM">Básica Primaria</option>
+              <option value="DOCENTE">Docente / Directivo</option>
+              <option value="Otro">Otro (visitante)</option>
             </select>
           </div>
 
-          {curso !== 'Otro' && (
+          {!sinLista && (
             <div className="flex-1">
               <label htmlFor="numero-estudiante" className="block text-[13px] font-medium text-[var(--color-secundario)] mb-1.5">
                 Número de lista
@@ -128,7 +136,7 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
           <div className="px-3.5 py-2 rounded-[12px] bg-[var(--color-fondo)] text-[13px] text-[var(--color-secundario)]">
             Tu código anónimo será:{' '}
             <span className="font-semibold text-[var(--color-texto)]">
-              {curso === 'Otro' ? 'VISITA' : numeroLista ? `${curso}-${numeroLista}` : `${curso}-…`}
+              {curso === 'Otro' ? 'VISITA' : curso === 'DOCENTE' ? 'DOCENTE' : numeroLista ? `${curso}-${numeroLista}` : `${curso}-…`}
             </span>
           </div>
         )}

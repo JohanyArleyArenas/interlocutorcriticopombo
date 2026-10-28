@@ -154,16 +154,23 @@ const extraerModosSugeridosYLimpiar = (
   });
   if (encontrados.size === 0 && textoLimpio) {
     const textoNorm = normalizarTextoModo(textoLimpio);
-    for (const item of TABLA_CORRESPONDENCIA_MODOS) {
-      if (item.id === modoActual || !AGENTE.modos[item.id]) continue;
-      if (!item.soloExplicito && textoNorm.includes(item.nombreNorm)) {
-        encontrados.add(item.id);
-      } else if (item.soloExplicito && textoNorm.includes(`modo ${item.nombreNorm}`)) {
-        encontrados.add(item.id);
+    const hayIntencionRedireccion =
+      /\b(corresponde\s+mejor|estar[ií]a\s+mejor|es\s+m[aá]s\s+para|te\s+sugiero\s+(?:el\s+modo|ir\s+a|cambiar|pasar)|puedes\s+(?:ir|cambiar|pasar|llevarlo|revisarlo)\s+(?:a|en)\s+(?:el\s+modo)?|en\s+el\s+modo)\b/i.test(
+        textoLimpio
+      );
+    if (hayIntencionRedireccion) {
+      for (const item of TABLA_CORRESPONDENCIA_MODOS) {
+        if (item.id === modoActual || !AGENTE.modos[item.id]) continue;
+        if (!item.soloExplicito && textoNorm.includes(item.nombreNorm)) {
+          encontrados.add(item.id);
+        } else if (item.soloExplicito && textoNorm.includes(`modo ${item.nombreNorm}`)) {
+          encontrados.add(item.id);
+        }
+        if (encontrados.size >= 2) break;
       }
     }
   }
-  return { textoLimpio: textoLimpio.trimEnd(), modosSugeridos: Array.from(encontrados) };
+  return { textoLimpio: textoLimpio.trimEnd(), modosSugeridos: Array.from(encontrados).slice(0, 2) };
 };
 
 export interface ChatArchivo {
@@ -1274,12 +1281,12 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!verifDato.trim()) {
-                      setVerifError('Escribe qué dato o idea comprobaste.');
+                    if (contarPalabrasReales(verifDato) < 3) {
+                      setVerifError('Escribe con al menos 3 palabras qué dato o idea específica comprobaste.');
                       return;
                     }
-                    if (!verifFuente.trim()) {
-                      setVerifError('Indica en qué fuente lo comprobaste.');
+                    if (verifFuente.trim().length < 4 || !/[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]{3,}/.test(verifFuente)) {
+                      setVerifError('Indica el nombre real o el enlace de la fuente donde lo comprobaste.');
                       return;
                     }
                     if (!verifResultado) {
