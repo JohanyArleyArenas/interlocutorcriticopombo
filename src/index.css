@@ -144,7 +144,7 @@
 }
 
 /* Foco visible con anillo de 2px en color acento */
-button:focus-visible,
+button:not(.nav-tab-item):focus-visible,
 a:focus-visible,
 select:focus-visible,
 input:focus-visible,
@@ -153,6 +153,11 @@ input:focus-visible,
 [role="tab"]:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--color-acento) !important;
+}
+
+.nav-tab-item:focus-visible {
+  outline: none;
+  box-shadow: none !important;
 }
 
 /* Aparición progresiva y fluida de bloques, tarjetas y mensajes */

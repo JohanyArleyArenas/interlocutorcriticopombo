@@ -173,7 +173,7 @@ export function TarjetaPregunta({
   const [verLectura, setVerLectura] = useState(true);
   const respondida = !!estado.respuesta;
   const urls = pregunta.paginas.map((p) => `/api/icfes/pagina/${pregunta.cuadernilloId}/${p}`);
-  const titulo = `Pregunta ${pregunta.numero} · ${pregunta.areaNombre}`;
+  const titulo = `Pregunta ${pregunta.numero}, ${pregunta.areaNombre}`;
   const pistasUsadas = estado.pistas || 0;
   const contenido = pregunta.contenido || null;
   // Textos para completar (inglés): el número del espacio en el texto es el de la pregunta en el cuadernillo

@@ -59,21 +59,27 @@ export const BarraInferiorMovil: React.FC<BarraInferiorMovilProps> = ({
               type="button"
               onClick={() => onCambiarSeccion(item.id)}
               aria-current={activa ? 'page' : undefined}
-              className={`relative min-h-[44px] h-full flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 sm:px-3.5 cursor-pointer focus:outline-none transition-colors ${
+              className={`group nav-tab-item relative min-h-[44px] h-full flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 sm:px-3.5 cursor-pointer focus:outline-none focus-visible:outline-none transition-colors ${
                 activa
                   ? 'text-[var(--color-acento)]'
-                  : 'text-[var(--color-secundario)] hover:text-[var(--color-texto)]'
+                  : 'text-[var(--color-secundario)] hover:text-[var(--color-texto)] focus-visible:text-[var(--color-texto)]'
               }`}
             >
               {/* Línea superior de 3px en acento cuando está activa, sin fondo de píldora */}
               {activa && (
                 <span
                   aria-hidden="true"
-                  className="absolute top-0 inset-x-4 sm:inset-x-2.5 h-[3px] rounded-b-full bg-[var(--color-acento)]"
+                  className="absolute top-0 inset-x-4 sm:inset-x-2.5 h-[3px] rounded-b-full bg-[var(--color-acento)] z-10"
                 />
               )}
 
-              <div className="relative flex items-center justify-center">
+              {/* Anillo de foco visible desplazado bajo la línea de 3px para evitar superposición */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute top-[6px] bottom-[4px] inset-x-1.5 sm:top-[7px] sm:bottom-[5px] sm:inset-x-1 rounded-[10px] ring-0 group-focus-visible:ring-2 group-focus-visible:ring-[var(--color-acento)] group-focus-visible:ring-offset-1 group-focus-visible:ring-offset-[var(--color-superficie)] group-focus-visible:bg-[var(--color-acento-suave)]/35 transition-all"
+              />
+
+              <div className="relative z-10 flex items-center justify-center">
                 <Icono
                   className={`w-[20px] h-[20px] sm:w-[18px] sm:h-[18px] transition-colors ${
                     activa ? 'text-[var(--color-acento)]' : 'text-current'
@@ -94,7 +100,7 @@ export const BarraInferiorMovil: React.FC<BarraInferiorMovilProps> = ({
               </div>
 
               <span
-                className={`text-[12px] sm:text-[14px] leading-none whitespace-nowrap transition-colors ${
+                className={`relative z-10 text-[12px] sm:text-[14px] leading-none whitespace-nowrap transition-colors ${
                   activa
                     ? 'font-bold text-[var(--color-acento)]'
                     : 'font-normal text-current'
@@ -105,7 +111,7 @@ export const BarraInferiorMovil: React.FC<BarraInferiorMovilProps> = ({
 
               {mostrarPuntoRetos && (
                 <span
-                  className="hidden sm:inline-flex min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--color-acento)] text-[var(--color-superficie)] text-[11px] font-bold items-center justify-center tabular-nums"
+                  className="relative z-10 hidden sm:inline-flex min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--color-acento)] text-[var(--color-superficie)] text-[11px] font-bold items-center justify-center tabular-nums"
                   aria-label={`${retosPendientes} misiones disponibles`}
                 >
                   {retosPendientes}
