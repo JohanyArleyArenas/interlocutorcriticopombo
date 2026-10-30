@@ -204,7 +204,10 @@ export const PanelGamificacion: React.FC<PanelGamificacionProps> = ({
       className="w-full mb-8 flex flex-col gap-6"
     >
       {/* Cabecera compacta de progreso */}
-      <div className="rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] p-5 flex flex-col gap-5">
+      <div
+        style={{ animationDelay: '70ms' }}
+        className="anim-tarjeta rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] p-5 flex flex-col gap-5"
+      >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="w-12 h-12 rounded-[14px] bg-[var(--color-acento)] text-[#FBFCFA] flex flex-col items-center justify-center shrink-0">
@@ -382,7 +385,7 @@ export const PanelGamificacion: React.FC<PanelGamificacionProps> = ({
 
       {/* Contenido de la pestaña activa */}
       {pestana !== null && (
-        <div>
+        <div key={pestana} style={{ animationDelay: '150ms' }} className="anim-entrada">
           {pestana === 'retos' && (
             <div className="flex flex-col gap-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -400,14 +403,15 @@ export const PanelGamificacion: React.FC<PanelGamificacionProps> = ({
 
               {/* Lista tipo cuaderno con casilla circular, descripción completa y recompensa a la derecha; sin chevrons */}
               <div className="rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] divide-y divide-[var(--color-separador)] overflow-hidden">
-                {CATALOGO_RETOS_DIARIOS.map((reto) => {
+                {CATALOGO_RETOS_DIARIOS.map((reto, idxReto) => {
                   const prog = estado.retos[reto.id] || { actual: 0, completado: false, reclamado: false };
                   return (
                     <button
                       key={reto.id}
                       type="button"
+                      style={{ animationDelay: `${190 + idxReto * 60}ms` }}
                       onClick={() => onSelectModo(reto.modoSugerido)}
-                      className="w-full px-4 py-4 text-left flex items-start justify-between gap-4 hover:bg-[var(--color-acento-suave)]/35 transition-colors cursor-pointer"
+                      className="anim-entrada w-full px-4 py-4 text-left flex items-start justify-between gap-4 hover:bg-[var(--color-acento-suave)]/35 transition-colors cursor-pointer"
                     >
                       <div className="flex items-start gap-3.5 min-w-0">
                         <span
@@ -448,7 +452,7 @@ export const PanelGamificacion: React.FC<PanelGamificacionProps> = ({
           )}
 
           {pestana === 'desafio' && (
-            <div className="rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] p-5 flex flex-col gap-4">
+            <div className="anim-tarjeta rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] p-5 flex flex-col gap-4">
               {/* Selector de categoría en chips */}
               <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--color-separador)]">
                 <span className="text-[14px] text-[var(--color-secundario)]">

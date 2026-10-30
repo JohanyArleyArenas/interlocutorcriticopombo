@@ -190,9 +190,12 @@ export const ModosGrid: React.FC<ModosGridProps> = ({
   };
 
   return (
-    <div className="vista-entrada w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-9 flex flex-col">
+    <div className="w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-9 flex flex-col">
       {/* Encabezado */}
-      <div className="w-full flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-5">
+      <div
+        style={{ animationDelay: '40ms' }}
+        className="anim-entrada w-full flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-5"
+      >
         <div>
           <h1 className="font-literata text-[30px] font-semibold text-[var(--color-texto)] leading-tight">
             Modos de estudio
@@ -214,7 +217,8 @@ export const ModosGrid: React.FC<ModosGridProps> = ({
       <div
         role="tablist"
         aria-label="Filtrar modos por categoría"
-        className="flex flex-wrap gap-2 mb-6"
+        style={{ animationDelay: '110ms' }}
+        className="anim-entrada flex flex-wrap gap-2 mb-6"
       >
         {CATEGORIAS_MODOS.map((cat) => {
           const activa = categoriaActiva === cat.id;
@@ -239,7 +243,7 @@ export const ModosGrid: React.FC<ModosGridProps> = ({
 
       {/* Cuadrícula de 2 columnas (1 en < 360px) de mosaicos */}
       <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-4 w-full items-stretch">
-        {modeKeysVisibles.map((key) => {
+        {modeKeysVisibles.map((key, idxModo) => {
           const modo = AGENTE.modos[key] as ModoConfig;
           if (!modo) return null;
           const Icon = modeIcons[key] || MessageSquareQuote;
@@ -248,7 +252,8 @@ export const ModosGrid: React.FC<ModosGridProps> = ({
 
           return (
             <div
-              key={key}
+              key={`${categoriaActiva}-${key}`}
+              style={{ animationDelay: `${160 + idxModo * 70}ms` }}
               onClick={() => onSelectModo(key)}
               role="button"
               tabIndex={0}
@@ -258,7 +263,7 @@ export const ModosGrid: React.FC<ModosGridProps> = ({
                   onSelectModo(key);
                 }
               }}
-              className="mosaico-estudio hover:border-[var(--color-acento)] text-left cursor-pointer h-full justify-between"
+              className="anim-tarjeta mosaico-estudio hover:border-[var(--color-acento)] text-left cursor-pointer h-full justify-between"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-3">

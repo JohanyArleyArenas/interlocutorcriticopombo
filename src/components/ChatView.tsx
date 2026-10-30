@@ -1735,10 +1735,17 @@ if (msg.selector) {
                 return null;
               }
               return (
-                <div key={msg.id} className="message-appear rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] overflow-hidden">
+                <div
+                  key={msg.id}
+                  style={{ animationDelay: '40ms' }}
+                  className="anim-tarjeta rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] overflow-hidden"
+                >
                   {!modoLecturaActivo && (
                     <div className="p-5 sm:p-6">
-                      <div className="flex items-start gap-4">
+                      <div
+                        style={{ animationDelay: '90ms' }}
+                        className="anim-entrada flex items-start gap-4"
+                      >
                         <div className="w-11 h-11 rounded-[10px] bg-[var(--color-acento-suave)] text-[var(--color-acento)] flex items-center justify-center shrink-0">
                           <IconoModo className="w-5 h-5" aria-hidden="true" />
                         </div>
@@ -1771,7 +1778,11 @@ if (msg.selector) {
                       {pasos.length > 0 && (
                         <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label="Cómo funciona">
                           {pasos.map((paso, i) => (
-                            <li key={i} className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] px-3.5 py-3">
+                            <li
+                              key={i}
+                              style={{ animationDelay: `${170 + i * 95}ms` }}
+                              className="anim-tarjeta flex sm:flex-col items-start gap-3 sm:gap-2 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] px-3.5 py-3"
+                            >
                               <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[12px] font-semibold flex items-center justify-center shrink-0">
                                 {i + 1}
                               </span>
@@ -1784,22 +1795,32 @@ if (msg.selector) {
                   )}
 
                   <div className={`px-5 sm:px-6 py-4 ${!modoLecturaActivo ? 'border-t border-[var(--color-separador)]' : ''}`}>
-                    <p className="text-[14px] font-semibold text-[var(--color-acento)] mb-1.5">
-                      Para empezar
-                    </p>
-                    <div className="prose-apple select-text">
-                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{prepararMatematicas(msg.text)}</ReactMarkdown>
+                    <div
+                      style={{ animationDelay: '360ms' }}
+                      className="anim-entrada"
+                    >
+                      <p className="text-[14px] font-semibold text-[var(--color-acento)] mb-1.5">
+                        Para empezar
+                      </p>
+                      <div className="prose-apple select-text">
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{prepararMatematicas(msg.text)}</ReactMarkdown>
+                      </div>
                     </div>
 
                     {esIcfes && (
-                      <React.Suspense fallback={<div className="h-28 mt-3 rounded-2xl bg-[var(--color-fondo)] animate-pulse" />}>
-                        <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} areaActual={preguntaActiva?.area} />
-                      </React.Suspense>
+                      <div style={{ animationDelay: '440ms' }} className="anim-entrada">
+                        <React.Suspense fallback={<div className="h-28 mt-3 rounded-2xl bg-[var(--color-fondo)] animate-pulse" />}>
+                          <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} areaActual={preguntaActiva?.area} />
+                        </React.Suspense>
+                      </div>
                     )}
 
                     {/* Apartado especial propuesto por el Prof. Sergio en el Tutor: subir ejercicios desarrollados en clase para que la IA explique con el mismo método del profesor */}
                     {modeKey === 'tutor' && modo.adjuntos && (
-                      <div className="mt-4 rounded-2xl border border-[var(--color-acento)]/30 bg-[var(--color-acento)]/[0.06] p-4">
+                      <div
+                        style={{ animationDelay: '430ms' }}
+                        className="anim-tarjeta mt-4 rounded-[14px] border border-[var(--color-acento)]/30 bg-[var(--color-acento-suave)]/60 p-4"
+                      >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <p className="text-[14px] font-semibold text-[var(--color-texto)] leading-snug">
@@ -1889,38 +1910,6 @@ if (msg.selector) {
                           setVerifError('');
                         }}
                       />
-                    )}
-
-                    {sinMensajes && ejemplos.length > 0 && !modoLecturaActivo && (
-                      <div className="mt-4 pt-3 border-t border-[var(--color-separador)]/50">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <span className="text-[12px] font-semibold text-[var(--color-secundario)]">
-                            O elige una pregunta disparadora rápida:
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setRondaIdeas((r) => r + 1)}
-                            className="text-[12px] font-medium px-2 py-0.5 rounded-lg text-[var(--color-acento)] hover:underline transition-opacity"
-                          >
-                            ↻ Ver otras preguntas
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {ejemplos.map((ej) => (
-                            <button
-                              key={ej}
-                              type="button"
-                              onClick={() => {
-                                setInputText(ej);
-                                textareaRef.current?.focus();
-                              }}
-                              className="text-left text-[13.5px] leading-snug px-3.5 py-2 min-h-[40px] rounded-xl border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[var(--color-texto)] hover:border-[var(--color-acento)] transition-colors"
-                            >
-                              {ej}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     )}
                   </div>
                 </div>
@@ -2103,8 +2092,11 @@ Cambiar de área
         <div aria-hidden="true" style={{ height: espacioFinal }} />
       </div>
 
-      {/* Campo de mensaje: tipo cápsula, flotante y centrado abajo (max-width 720px), radio 28px, fondo superficie, sombra suave, borde 1px #D2D2D7 */}
-      <div className="zona-entrada px-3 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 shrink-0 bg-transparent">
+      {/* Campo de mensaje */}
+      <div
+        style={{ animationDelay: '220ms' }}
+        className="anim-entrada zona-entrada px-3 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 shrink-0 bg-transparent"
+      >
         <div className="max-w-[720px] mx-auto relative flex flex-col">
           {/* Fichas de archivos adjuntos previos al envío (soporta varios archivos y ejemplos de clase) */}
           {(attachedFiles.length > 0 || ejemplosClaseFiles.length > 0) && (

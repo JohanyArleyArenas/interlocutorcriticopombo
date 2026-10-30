@@ -900,9 +900,15 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
   };
 
   return (
-    <div className="mt-4 rounded-[14px] border border-[var(--color-separador)] bg-[var(--color-fondo)] p-4 sm:p-5 flex flex-col gap-4">
+    <div
+      style={{ animationDelay: '460ms' }}
+      className="anim-tarjeta mt-4 rounded-[14px] border border-[var(--color-separador)] bg-[var(--color-fondo)] p-4 sm:p-5 flex flex-col gap-4"
+    >
       {/* Cabecera de la Ruta Guiada con indicador de pasos */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[var(--color-separador)]">
+      <div
+        style={{ animationDelay: '510ms' }}
+        className="anim-entrada flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[var(--color-separador)]"
+      >
         <div>
           <div className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--color-acento)]">
             <Sparkles className="w-3.5 h-3.5" />
@@ -922,7 +928,7 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
       </div>
 
       {/* PASO 1: Botones de Área / Materia / Tipo de Texto / Misión */}
-      <div>
+      <div style={{ animationDelay: '560ms' }} className="anim-entrada">
         <div className="flex items-center justify-between gap-2 mb-2">
           <span className="text-[14px] font-bold text-[var(--color-texto)]">
             {config.tituloPaso1}
@@ -933,41 +939,42 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          {config.opcionesPaso1.map((op) => {
+          {config.opcionesPaso1.map((op, idxOp1) => {
             const activo = op.id === opcion1Actual?.id;
             const IconoOp = ICONO_MAPA[op.icono || 'sparkles'] || Sparkles;
             return (
               <button
                 key={op.id}
                 type="button"
+                style={{ animationDelay: `${580 + idxOp1 * 55}ms` }}
                 onClick={() => {
                   setPaso1Id(op.id);
                   setTemaElegidoId('');
                 }}
-                className={`text-left p-3 rounded-xl border transition-all flex flex-col justify-between gap-1.5 min-h-[78px] ${
+                className={`anim-tarjeta text-left p-3 rounded-[14px] border transition-all flex flex-col justify-between gap-1.5 min-h-[78px] ${
                   activo
-                    ? 'border-[var(--color-acento)] bg-[var(--color-acento)]/[0.08] shadow-2xs'
-                    : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]/50'
+                    ? 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]'
+                    : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 w-full">
                   <div className="inline-flex items-center gap-2 min-w-0">
                     <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                      className={`w-7 h-7 rounded-[10px] flex items-center justify-center shrink-0 ${
                         activo
-                          ? 'bg-[var(--color-acento)] text-white'
+                          ? 'bg-[var(--color-acento)] text-[#FBFCFA]'
                           : 'bg-[var(--color-fondo)] text-[var(--color-acento)]'
                       }`}
                     >
                       <IconoOp className="w-4 h-4" />
                     </div>
-                    <span className="text-[14px] font-bold text-[var(--color-texto)] leading-tight">
+                    <span className="font-literata text-[14.5px] font-semibold text-[var(--color-texto)] leading-tight">
                       {op.titulo}
                     </span>
                   </div>
                   {activo && <CheckCircle2 className="w-4 h-4 text-[var(--color-acento)] shrink-0" />}
                 </div>
-                <p className="text-[12px] text-[var(--color-secundario)] leading-snug">
+                <p className="text-[13px] text-[var(--color-secundario)] leading-snug">
                   {op.subtitulo}
                 </p>
               </button>
@@ -977,7 +984,7 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
       </div>
 
       {/* PASO 2: Botones de Enfoque / Estación de Revisión / Método */}
-      <div>
+      <div style={{ animationDelay: '650ms' }} className="anim-entrada">
         <div className="flex items-center justify-between gap-2 mb-2">
           <span className="text-[14px] font-bold text-[var(--color-texto)]">
             {config.tituloPaso2}
@@ -990,14 +997,15 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {config.opcionesPaso2.map((op2) => {
+          {config.opcionesPaso2.map((op2, idxOp2) => {
             const activo = op2.id === opcion2Actual?.id;
             return (
               <button
                 key={op2.id}
                 type="button"
+                style={{ animationDelay: `${670 + idxOp2 * 55}ms` }}
                 onClick={() => setPaso2Id(op2.id)}
-                className={`text-left px-3.5 py-2.5 rounded-[14px] border transition-colors flex items-start justify-between gap-2 ${
+                className={`anim-tarjeta text-left px-3.5 py-2.5 rounded-[14px] border transition-colors flex items-start justify-between gap-2 ${
                   activo
                     ? 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]'
                     : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]'
@@ -1033,79 +1041,11 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
         </div>
       </div>
 
-      {/* PASO 3: Subtemas / Misiones listas para entrar con un botón */}
-      {temasDisponibles.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <span className="text-[13px] font-bold text-[var(--color-texto)]">
-              3. Elige un punto de partida en «{opcion1Actual.titulo}» o sube tu material:
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {temasDisponibles.map((tema) => {
-              const seleccionado = tema.id === temaElegidoId;
-              return (
-                <div
-                  key={tema.id}
-                  className={`rounded-xl border p-3 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-                    seleccionado
-                      ? 'border-[var(--color-acento)] bg-[var(--color-acento)]/[0.06]'
-                      : 'border-[var(--color-separador)] bg-[var(--color-superficie)]'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTemaElegidoId(tema.id);
-                      onPrepararPrompt(construirPromptCombinado(tema));
-                    }}
-                    className="text-left flex-1 min-w-0 flex items-start gap-2.5"
-                  >
-                    <ArrowRight className="w-4 h-4 text-[var(--color-acento)] shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-[13.5px] font-semibold text-[var(--color-texto)] leading-snug block">
-                        {tema.label}
-                      </span>
-                      <span className="text-[11.5px] text-[var(--color-secundario)]">
-                        Con enfoque: {opcion2Actual.titulo}
-                      </span>
-                    </div>
-                  </button>
-
-                  <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTemaElegidoId(tema.id);
-                        onPrepararPrompt(construirPromptCombinado(tema));
-                      }}
-                      className="px-2.5 py-1.5 min-h-[34px] rounded-lg border border-[var(--color-separador)] bg-[var(--color-fondo)] text-[12px] font-medium text-[var(--color-texto)] hover:border-[var(--color-acento)] transition-colors"
-                      title="Poner en el cuadro de texto para agregar tus propios detalles"
-                    >
-                      Editar antes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTemaElegidoId(tema.id);
-                        onEnviarDirecto(construirPromptCombinado(tema));
-                      }}
-                      className="px-3 py-1.5 min-h-[34px] rounded-lg bg-[var(--color-acento)] text-white text-[12px] font-semibold inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Iniciar ahora</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Barra de acciones directas según el modo */}
-      <div className="pt-2 border-t border-[var(--color-separador)] flex flex-wrap items-center justify-between gap-2">
+      <div
+        style={{ animationDelay: '730ms' }}
+        className="anim-entrada pt-2 border-t border-[var(--color-separador)] flex flex-wrap items-center justify-between gap-2"
+      >
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"

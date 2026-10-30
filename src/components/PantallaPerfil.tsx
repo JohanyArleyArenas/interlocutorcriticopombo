@@ -136,9 +136,12 @@ export const PantallaPerfil: React.FC<PantallaPerfilProps> = ({
   const sesionesVisibles = mostrarTodoHistorial ? historial : historial.slice(0, 5);
 
   return (
-    <div className="vista-entrada w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-9 flex flex-col gap-7">
+    <div className="w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-9 flex flex-col gap-7">
       {/* Encabezado de pantalla */}
-      <div className="flex items-start justify-between gap-4">
+      <div
+        style={{ animationDelay: '40ms' }}
+        className="anim-entrada flex items-start justify-between gap-4"
+      >
         <div>
           <h1 className="font-literata text-[30px] font-semibold text-[var(--color-texto)] leading-tight">
             Perfil de estudio
@@ -161,7 +164,11 @@ export const PantallaPerfil: React.FC<PantallaPerfilProps> = ({
       </div>
 
       {/* Preferencias como lista con interruptores */}
-      <section aria-label="Preferencias de estudio">
+      <section
+        aria-label="Preferencias de estudio"
+        style={{ animationDelay: '110ms' }}
+        className="anim-tarjeta"
+      >
         <h2 className="font-literata text-[19px] font-semibold text-[var(--color-texto)] mb-3">
           Preferencias de estudio
         </h2>
@@ -326,7 +333,11 @@ export const PantallaPerfil: React.FC<PantallaPerfilProps> = ({
       </section>
 
       {/* Historial de conversaciones */}
-      <section aria-label="Historial de conversaciones">
+      <section
+        aria-label="Historial de conversaciones"
+        style={{ animationDelay: '200ms' }}
+        className="anim-tarjeta"
+      >
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="font-literata text-[19px] font-semibold text-[var(--color-texto)]">
             Historial de conversaciones
@@ -437,7 +448,11 @@ export const PantallaPerfil: React.FC<PantallaPerfilProps> = ({
       </section>
 
       {/* Distinción académica */}
-      <section aria-label="Distinción académica">
+      <section
+        aria-label="Distinción académica"
+        style={{ animationDelay: '290ms' }}
+        className="anim-tarjeta"
+      >
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="font-literata text-[19px] font-semibold text-[var(--color-texto)]">
             Distinción académica
@@ -498,14 +513,20 @@ export const PantallaPerfil: React.FC<PantallaPerfilProps> = ({
       </section>
 
       {/* Resumen de Progreso y Desafíos Culturales */}
-      <PanelLogros
-        estudiante={estudiante}
-        onSelectModo={onSelectModo}
-        onIniciarDesafioCultural={onAbrirDesafioCultural}
-      />
+      <div style={{ animationDelay: '370ms' }} className="anim-tarjeta">
+        <PanelLogros
+          estudiante={estudiante}
+          onSelectModo={onSelectModo}
+          onIniciarDesafioCultural={onAbrirDesafioCultural}
+        />
+      </div>
 
       {/* Reconocimientos agrupados en desbloqueados y por desbloquear, sin repetir "Pendiente" */}
-      <section aria-label="Reconocimientos">
+      <section
+        aria-label="Reconocimientos"
+        style={{ animationDelay: '450ms' }}
+        className="anim-tarjeta"
+      >
         <h2 className="font-literata text-[19px] font-semibold text-[var(--color-texto)] mb-3">
           Reconocimientos ({insigniasDesbloqueadas.length} de {INSIGNIAS_CATALOGO.length})
         </h2>

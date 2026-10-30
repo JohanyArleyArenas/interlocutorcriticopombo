@@ -68,15 +68,16 @@ export function SelectorArea({
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3">
-      {AREAS_ENTRENADOR.map((a) => {
+      {AREAS_ENTRENADOR.map((a, idxArea) => {
         const m = marcador?.[a.clave];
         return (
           <button
             key={a.clave}
             type="button"
             disabled={deshabilitado}
+            style={{ animationDelay: `${120 + idxArea * 65}ms` }}
             onClick={() => onElegir(a.clave)}
-            className={`text-left px-4 py-3 min-h-[56px] rounded-[14px] border transition-colors disabled:opacity-50 ${
+            className={`anim-tarjeta text-left px-4 py-3 min-h-[56px] rounded-[14px] border transition-colors disabled:opacity-50 ${
               areaActual === a.clave
                 ? 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]'
                 : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]'

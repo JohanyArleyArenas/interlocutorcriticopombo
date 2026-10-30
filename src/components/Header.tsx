@@ -1,12 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Flame, Star, Sparkles, ChevronLeft } from 'lucide-react';
-import {
-  CATALOGO_RETOS_DIARIOS,
-  type NotificacionRecompensa,
-} from '../gamificacion.ts';
+import type { NotificacionRecompensa } from '../gamificacion.ts';
 import { useGamificacion } from '../useGamificacion.ts';
-import { ITEMS_NAVEGACION, type SeccionApp } from './BarraNavegacionApp.tsx';
+import { BarraInferiorMovil, type SeccionApp } from './BarraNavegacionApp.tsx';
 
 interface HeaderProps {
   onBackToModos?: () => void;
@@ -71,9 +68,6 @@ export const Header: React.FC<HeaderProps> = ({
   const { estado, infoNivel } = useGamificacion(estudiante || '');
   const progreso = estudiante ? estado : null;
   const nivel = estudiante ? infoNivel.nivelActual : null;
-  const retosPendientes = progreso
-    ? CATALOGO_RETOS_DIARIOS.filter((r) => !progreso.retos[r.id]?.completado).length
-    : 0;
 
   const [explosiones, setExplosiones] = useState<ExplosionActiva[]>([]);
   const [animandoContador, setAnimandoContador] = useState(false);
@@ -148,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="bg-[var(--color-superficie)] border-b border-[var(--color-separador)] sticky top-0 z-30 transition-colors">
+    <header className="bg-[var(--color-superficie)] border-b border-[var(--color-separador)] sticky top-0 z-40 transition-colors">
       <div className="max-w-[1040px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between gap-3">
         {/* Identidad del Liceo con escudo a 36px y Literata 600 */}
         <div
@@ -188,45 +182,14 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Navegación superior en Web y Tablet (>= 640px) */}
+        {/* Barra de navegación: inferior en móvil (<sm) y superior horizontal fija alineada al logo en desktop (sm:) */}
         {estudiante && onCambiarSeccion && !(enChat && progreso?.modoLecturaActivo) && (
-          <nav
-            aria-label="Secciones principales de la aplicación"
-            className="hidden sm:flex items-center gap-1"
-          >
-            {ITEMS_NAVEGACION.map((item) => {
-              const Icono = item.icono;
-              const activa = !enChat && seccionActiva === item.id;
-              const mostrarBadge = item.id === 'retos' && retosPendientes > 0;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onCambiarSeccion(item.id)}
-                  aria-current={activa ? 'page' : undefined}
-                  className={`relative min-h-[44px] px-3.5 py-2 rounded-full text-[14px] inline-flex items-center gap-2 transition-colors cursor-pointer select-none ${
-                    activa
-                      ? 'bg-[var(--color-acento-suave)] text-[var(--color-acento)] font-bold'
-                      : 'text-[var(--color-secundario)] hover:text-[var(--color-texto)] font-normal'
-                  }`}
-                >
-                  <Icono
-                    className="w-4 h-4 shrink-0"
-                    strokeWidth={activa ? 2.3 : 1.9}
-                    fill={activa ? 'currentColor' : 'none'}
-                    fillOpacity={activa ? 0.16 : 0}
-                  />
-                  <span className="whitespace-nowrap">{item.etiquetaCorta}</span>
-                  {mostrarBadge && (
-                    <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--color-acento)] text-[var(--color-superficie)] text-[11px] font-bold inline-flex items-center justify-center tabular-nums">
-                      {retosPendientes}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+          <BarraInferiorMovil
+            seccionActiva={seccionActiva}
+            onCambiarSeccion={onCambiarSeccion}
+            estudiante={estudiante}
+            enChat={enChat}
+          />
         )}
 
         {/* Indicadores de racha y estrellas */}

@@ -4,7 +4,6 @@ import { Header } from './components/Header.tsx';
 import { Footer } from './components/Footer.tsx';
 import { PanelGamificacion, ToastRecompensaFlotante } from './components/PanelGamificacion.tsx';
 import {
-  BarraInferiorMovil,
   ORDEN_SECCIONES,
   type SeccionApp,
 } from './components/BarraNavegacionApp.tsx';
@@ -85,9 +84,10 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
     <div className="flex-1 flex items-center justify-center px-4 py-8 sm:py-12">
       <form
         onSubmit={enviar}
-        className="w-full max-w-[520px] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[14px] p-6 sm:p-8 flex flex-col gap-4 text-left"
+        style={{ animationDelay: '60ms' }}
+        className="anim-tarjeta w-full max-w-[520px] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[14px] p-6 sm:p-8 flex flex-col gap-4 text-left"
       >
-        <div>
+        <div style={{ animationDelay: '120ms' }} className="anim-entrada">
           <h1 className="font-literata text-[24px] sm:text-[26px] font-semibold tracking-[-0.015em] text-[var(--color-texto)] leading-snug">
             Participación y consentimiento
           </h1>
@@ -96,7 +96,10 @@ function IngresoNombre({ onListo }: { onListo: (codigo: string) => void }) {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 pt-1">
+        <div
+          style={{ animationDelay: '200ms' }}
+          className="anim-entrada flex flex-col sm:flex-row gap-3 pt-1"
+        >
           <div className="flex-1">
             <label htmlFor="curso-estudiante" className="block text-[14px] font-semibold text-[var(--color-texto)] mb-1.5">
               Grado o rol en el Liceo
@@ -356,17 +359,20 @@ export default function App() {
   };
 
   const variantesTransicionPantalla = {
-    entrar: {
-      y: 8,
+    entrar: (dir: number) => ({
+      x: dir > 0 ? 28 : -28,
+      y: 6,
       opacity: 0,
-    },
+    }),
     centro: {
+      x: 0,
       y: 0,
       opacity: 1,
     },
-    salir: {
+    salir: (dir: number) => ({
+      x: dir > 0 ? -20 : 20,
       opacity: 0,
-    },
+    }),
   };
 
   const claveVistaActiva = !estudiante
@@ -412,7 +418,7 @@ export default function App() {
             initial="entrar"
             animate="centro"
             exit="salir"
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ type: 'spring', stiffness: 340, damping: 32, mass: 0.85 }}
             className="flex-1 min-h-0 flex flex-col"
           >
             {!estudiante ? (
@@ -512,15 +518,6 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </main>
-
-      {/* Barra de Navegación Inferior estilo iPhone (Solo en móvil cuando no está en un chat) */}
-      {estudiante && !selectedModeKey && (
-        <BarraInferiorMovil
-          seccionActiva={seccionActiva}
-          onCambiarSeccion={cambiarSeccionNavegacion}
-          estudiante={estudiante}
-        />
-      )}
 
       {/* Notificación flotante de estrellas, retos e insignias */}
       <ToastRecompensaFlotante />

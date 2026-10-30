@@ -76,9 +76,12 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
   ).length;
 
   return (
-    <div className="vista-entrada w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-9 flex flex-col gap-7">
+    <div className="w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-9 flex flex-col gap-7">
       {/* Saludo y línea discreta con nivel y racha */}
-      <div className="flex items-start justify-between gap-4">
+      <div
+        style={{ animationDelay: '40ms' }}
+        className="anim-entrada flex items-start justify-between gap-4"
+      >
         <div>
           <h1 className="font-literata text-[30px] font-semibold text-[var(--color-texto)] leading-tight">
             Hola, {estudiante}
@@ -100,7 +103,11 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
       </div>
 
       {/* Tarjeta protagonista única: Desafío del día */}
-      <section aria-label="Desafío del día">
+      <section
+        aria-label="Desafío del día"
+        style={{ animationDelay: '110ms' }}
+        className="anim-tarjeta"
+      >
         <div className="rounded-[20px] bg-[#1F5A40] text-[#FBFCFA] p-5 sm:p-6 flex flex-col gap-5 border border-[#1F5A40]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="max-w-[540px]">
@@ -122,12 +129,13 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pt-3.5 border-t border-[#FBFCFA]/20">
-            {TEMAS_CULTURA.map((tema) => (
+            {TEMAS_CULTURA.map((tema, idxTema) => (
               <button
                 key={tema.id}
                 type="button"
+                style={{ animationDelay: `${180 + idxTema * 45}ms` }}
                 onClick={() => onAbrirDesafioCultural(tema.id)}
-                className="min-h-[38px] px-3.5 py-1.5 rounded-full bg-[#FBFCFA]/14 hover:bg-[#FBFCFA]/24 text-[#FBFCFA] text-[14px] transition-colors cursor-pointer"
+                className="anim-entrada min-h-[38px] px-3.5 py-1.5 rounded-full bg-[#FBFCFA]/14 hover:bg-[#FBFCFA]/24 text-[#FBFCFA] text-[14px] transition-colors cursor-pointer"
               >
                 {tema.label}
               </button>
@@ -137,7 +145,11 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
       </section>
 
       {/* Franja compacta de una línea (Estrellas, Racha y XP) + Barras finas sin caja */}
-      <section aria-label="Progreso diario" className="flex flex-col gap-4">
+      <section
+        aria-label="Progreso diario"
+        style={{ animationDelay: '220ms' }}
+        className="anim-entrada flex flex-col gap-4"
+      >
         <div className="rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-[15px]">
           <div className="inline-flex items-center gap-2">
             <Star className="w-4 h-4 text-[var(--color-oro)] fill-[var(--color-oro)] shrink-0" />
@@ -178,7 +190,7 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${porcentajeMetaHoy}%` }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
+                transition={{ duration: 0.65, delay: 0.28, ease: 'easeOut' }}
                 className="h-full rounded-full bg-[var(--color-acento)]"
               />
             </div>
@@ -202,7 +214,7 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${infoNivel.progresoPorcentaje}%` }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
+                transition={{ duration: 0.65, delay: 0.34, ease: 'easeOut' }}
                 className="h-full rounded-full bg-[var(--color-acento)]"
               />
             </div>
@@ -212,7 +224,10 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
 
       {/* Modos destacados en cuadrícula de 2 columnas (1 en < 360px) */}
       <section aria-label="Modos de estudio destacados">
-        <div className="flex items-baseline justify-between mb-3">
+        <div
+          style={{ animationDelay: '300ms' }}
+          className="anim-entrada flex items-baseline justify-between mb-3"
+        >
           <h2 className="font-literata text-[19px] font-semibold text-[var(--color-texto)]">
             Estaciones de estudio
           </h2>
@@ -226,7 +241,7 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
         </div>
 
         <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3.5">
-          {ESTACIONES_DESTACADAS.map((est) => {
+          {ESTACIONES_DESTACADAS.map((est, idxEst) => {
             const modoCfg = AGENTE.modos[est.key];
             if (!modoCfg) return null;
             const Icono = est.icono;
@@ -234,8 +249,9 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
               <button
                 key={est.key}
                 type="button"
+                style={{ animationDelay: `${340 + idxEst * 70}ms` }}
                 onClick={() => onSelectModo(est.key)}
-                className="rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] hover:border-[var(--color-acento)] p-4 text-left flex flex-col justify-between gap-3 transition-colors cursor-pointer"
+                className="anim-tarjeta rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] hover:border-[var(--color-acento)] p-4 text-left flex flex-col justify-between gap-3 transition-colors cursor-pointer"
               >
                 <div>
                   <div className="w-9 h-9 rounded-[10px] bg-[var(--color-acento-suave)] text-[var(--color-acento)] flex items-center justify-center mb-3">
@@ -260,7 +276,10 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
 
       {/* Misiones del día: lista tipo cuaderno con casilla circular, descripción completa y recompensa a la derecha */}
       <section aria-label="Misiones del día">
-        <div className="flex items-baseline justify-between mb-3">
+        <div
+          style={{ animationDelay: '560ms' }}
+          className="anim-entrada flex items-baseline justify-between mb-3"
+        >
           <h2 className="font-literata text-[19px] font-semibold text-[var(--color-texto)]">
             Misiones del día ({retosCompletadosHoy} de {CATALOGO_RETOS_DIARIOS.length})
           </h2>
@@ -273,8 +292,11 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
           </button>
         </div>
 
-        <div className="rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] divide-y divide-[var(--color-separador)] overflow-hidden">
-          {CATALOGO_RETOS_DIARIOS.map((reto) => {
+        <div
+          style={{ animationDelay: '600ms' }}
+          className="anim-tarjeta rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] divide-y divide-[var(--color-separador)] overflow-hidden"
+        >
+          {CATALOGO_RETOS_DIARIOS.map((reto, idxReto) => {
             const prog = estado.retos[reto.id] || {
               actual: 0,
               completado: false,
@@ -284,10 +306,11 @@ export const PantallaInicio: React.FC<PantallaInicioProps> = ({
               <button
                 key={reto.id}
                 type="button"
+                style={{ animationDelay: `${630 + idxReto * 60}ms` }}
                 onClick={() =>
                   prog.completado ? onCambiarSeccion('retos') : onSelectModo(reto.modoSugerido)
                 }
-                className="w-full px-4 py-4 text-left flex items-start justify-between gap-4 hover:bg-[var(--color-acento-suave)]/35 transition-colors cursor-pointer"
+                className="anim-entrada w-full px-4 py-4 text-left flex items-start justify-between gap-4 hover:bg-[var(--color-acento-suave)]/35 transition-colors cursor-pointer"
               >
                 <div className="flex items-start gap-3.5 min-w-0">
                   <span
