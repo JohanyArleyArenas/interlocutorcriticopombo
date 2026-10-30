@@ -31,11 +31,23 @@ import {
   Flag,
   Download,
   Sigma,
-  GraduationCap
+  GraduationCap,
+  BookOpen
 } from 'lucide-react';
-import { Grafica } from './Grafica.tsx';
-import { SelectorArea, TarjetaPregunta, PreguntaIcfesMeta, EstadoPreguntaIcfes } from './EntrenadorIcfes.tsx';
+import type { PreguntaIcfesMeta, EstadoPreguntaIcfes } from './EntrenadorIcfes.tsx';
 import { AGENTE, ModoConfig } from '../parametros.ts';
+import { useGamificacion } from '../useGamificacion.ts';
+import { useSonidos } from '../useSonidos.ts';
+import { RutaGuiadaModo } from './RutaGuiadaModo.tsx';
+import { guardarSesionConversacion } from '../historialConversaciones.ts';
+
+// Carga diferida de componentes pesados para que el chat abra más rápido
+const cargarGrafica = () => import('./Grafica.tsx');
+const Grafica = React.lazy(() => cargarGrafica().then((m) => ({ default: m.Grafica })));
+
+const cargarEntrenadorIcfes = () => import('./EntrenadorIcfes.tsx');
+const SelectorArea = React.lazy(() => cargarEntrenadorIcfes().then((m) => ({ default: m.SelectorArea })));
+const TarjetaPregunta = React.lazy(() => cargarEntrenadorIcfes().then((m) => ({ default: m.TarjetaPregunta })));
 
 // Bloques ```grafica: la IA describe la gráfica en JSON y aquí se dibuja (ver Grafica.tsx)
 const renderPre = ({ node, children, ...props }: any) => {
@@ -44,7 +56,11 @@ const renderPre = ({ node, children, ...props }: any) => {
   const lista: string[] = Array.isArray(clases) ? clases.map(String) : typeof clases === 'string' ? clases.split(' ') : [];
   if (lista.includes('language-grafica')) {
     const texto = (hijo?.children || []).map((t: any) => t?.value || '').join('');
-    return <Grafica fuente={texto} />;
+    return (
+      <React.Suspense fallback={<div className="my-3 h-48 rounded-2xl bg-[var(--color-superficie)] border border-[var(--color-separador)] animate-pulse" />}>
+        <Grafica fuente={texto} />
+      </React.Suspense>
+    );
   }
   return <pre {...props}>{children}</pre>;
 };
@@ -204,6 +220,8 @@ interface ChatViewProps {
   onCambiarModo?: (newModeKey: string, mensajesConservar?: ChatMessage[]) => void;
   onChangeModo?: (newModeKey: string, mensajesConservar?: ChatMessage[]) => void;
   initialMessages?: ChatMessage[];
+  sesionIdInicial?: string;
+  esReanudacion?: boolean;
   estudiante?: string;
 }
 
@@ -218,7 +236,16 @@ interface AttachedFilePreview {
   esEjemploClase?: boolean;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onCambiarModo, onChangeModo, initialMessages, estudiante }) => {
+export const ChatView: React.FC<ChatViewProps> = ({
+  modeKey,
+  onBackToModos,
+  onCambiarModo,
+  onChangeModo,
+  initialMessages,
+  sesionIdInicial,
+  esReanudacion,
+  estudiante,
+}) => {
   const modo: ModoConfig = AGENTE.modos[modeKey] || {
     titulo: 'Diálogo socrático',
     descripcion: '',
@@ -238,6 +265,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ modeKey, onBackToModos, onCa
       text: modo.saludo,
       timestamp: Date.now(),
     };
+    if (esReanudacion && Array.isArray(initialMessages) && initialMessages.length > 0) {
+      const tieneSaludo = initialMessages.some((m) => m.id === 'greeting');
+      return tieneSaludo ? initialMessages : [saludoInicial, ...initialMessages];
+    }
     if (modeKey !== 'icfes' && Array.isArray(initialMessages) && initialMessages.length > 0) {
       const previos = initialMessages.filter((m) => m.id !== 'greeting' && !m.pregunta && !m.selector);
       if (previos.length > 0) {
@@ -345,8 +376,10 @@ if (clave === 'tutor') return base;
   };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const ejemplosClaseInputRef = useRef<HTMLInputElement | null>(null);
-  // Identificador de esta conversación (para agrupar los turnos en la hoja de registro)
-  const sesionRef = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
+  // Identificador de esta conversación (para agrupar los turnos en la hoja de registro y en localStorage)
+  const sesionRef = useRef(
+    sesionIdInicial || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+  );
 
   // ===== Cierre de sesión: reflexión del estudiante y descarga de la conversación =====
   const inicioSesionRef = useRef(Date.now());
@@ -360,6 +393,33 @@ if (clave === 'tutor') return base;
   const [dudas, setDudas] = useState('');
   const [confianza, setConfianza] = useState(0);
   const turnosEstudiante = messages.filter((m) => m.role === 'user').length;
+
+  // Guarda automáticamente la sesión en el historial local cuando el estudiante participa
+  useEffect(() => {
+    if (!estudiante || turnosEstudiante === 0) return;
+    guardarSesionConversacion({
+      estudiante,
+      sesionId: sesionRef.current,
+      modoKey: modeKey,
+      modoTitulo: modo.titulo,
+      mensajes: messages,
+      creadoEn: inicioSesionRef.current,
+    });
+  }, [messages, estudiante, modeKey, modo.titulo, turnosEstudiante]);
+
+  // Hook que escucha las interacciones del chat (preguntas analíticas, desafíos críticos, archivos)
+  const {
+    registrarVerificacionExterna,
+    registrarRespuestaIcfes,
+    registrarCierreSesion,
+  } = useGamificacion({
+    estudiante: estudiante || '',
+    modo: modeKey,
+    mensajes: messages,
+  });
+
+  // Preferencia de Modo Lectura (sincronizada con PantallaPerfil y localStorage)
+  const { modoLecturaActivo, alternarModoLectura } = useSonidos(estudiante || '');
 
   const intentarVolverAModos = () => {
     if (MODOS_CON_CIERRE.includes(modeKey) && turnosEstudiante > 0 && cierreEstado !== 'listo') {
@@ -435,6 +495,7 @@ if (clave === 'tutor') return base;
       }
       setCierreEstado('listo');
       setAvisoSalidaSinCierre(false);
+      registrarCierreSesion(modeKey);
     } catch (e: any) {
       setCierreEstado('editando');
       setCierreError(e?.message || 'No se pudo guardar tu reflexión. Intenta de nuevo.');
@@ -1029,6 +1090,22 @@ const pedirPregunta = async (area: string) => {
   }
 };
 
+useEffect(() => {
+  if (!esIcfes) return;
+  try {
+    const areaInicial = sessionStorage.getItem('interlocutor-icfes-area-inicial');
+    if (areaInicial) {
+      sessionStorage.removeItem('interlocutor-icfes-area-inicial');
+      window.setTimeout(() => {
+        pedirPregunta(areaInicial);
+      }, 80);
+    }
+  } catch {
+    // Ignorar errores de sessionStorage
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [esIcfes]);
+
 const mostrarSelectorAreas = () => {
   const idMensaje = `selector-${Date.now()}`;
   setMessages((prev) => [...prev, { id: idMensaje, role: 'model', text: '', selector: true, timestamp: Date.now() }]);
@@ -1059,6 +1136,7 @@ const aplicarResultadoIcfes = (r: { id: string; clave: string; correcta: boolean
     const a = prev[r.area] || { aciertos: 0, intentos: 0 };
     return { ...prev, [r.area]: { aciertos: a.aciertos + (r.correcta ? 1 : 0), intentos: a.intentos + 1 } };
   });
+  registrarRespuestaIcfes(!!r.correcta, r.area);
 };
 
 // Reintentar: vuelve a enviar el último mensaje del estudiante (o vuelve a pedir la pregunta)
@@ -1109,7 +1187,9 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 
   return (
     <div 
-      className="relative flex-1 flex flex-col min-h-0 w-full bg-transparent overflow-hidden"
+      className={`relative flex-1 flex flex-col min-h-0 w-full bg-transparent overflow-hidden ${
+        modoLecturaActivo ? 'modo-lectura-chat' : ''
+      }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1134,45 +1214,68 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 
           {/* Título del modo centrado */}
           <div className="flex-1 min-w-0 flex items-center justify-center pointer-events-none px-2">
-            <h2 className="text-[15px] sm:text-[16px] font-semibold text-[var(--color-texto)] tracking-tight truncate leading-[1.5] py-0.5 max-w-full sm:max-w-[400px]">
+            <h2 className="font-literata text-[16px] sm:text-[17px] font-semibold text-[var(--color-texto)] tracking-[-0.01em] truncate leading-[1.5] py-0.5 max-w-full sm:max-w-[400px]">
               {modo.titulo}
             </h2>
           </div>
 
-          {MODOS_CON_CIERRE.includes(modeKey) ? (
-            <div className="flex items-center gap-2 sm:gap-3 z-10 -mr-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setVerifAbierta(true);
-                  setVerifError('');
-                  setBarraVisible(true);
-                }}
-                disabled={isLoading}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--color-acento)]/30 bg-[var(--color-acento)]/10 text-[13px] sm:text-[14px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-acento)]/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
-                aria-label="Registrar lo que verificaste fuera de la IA"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Lo verifiqué por fuera</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAvisoSalidaSinCierre(false);
-                  setCierreAbierto(true);
-                  setBarraVisible(true);
-                }}
-                disabled={turnosEstudiante === 0 || isLoading}
-                className="inline-flex items-center gap-1 text-[14px] sm:text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
-                aria-label="Terminar la sesión y reflexionar"
-              >
-                <Flag className="w-4 h-4" />
-                <span>Terminar</span>
-              </button>
-            </div>
-          ) : (
-            <div className="w-12" />
-          )}
+          <div className="flex items-center gap-2 sm:gap-2.5 z-10 -mr-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => alternarModoLectura()}
+              aria-pressed={modoLecturaActivo}
+              title={
+                modoLecturaActivo
+                  ? 'Modo Lectura activado (toca para volver a la vista estándar)'
+                  : 'Activar Modo Lectura para ampliar letra y ocultar distracciones'
+              }
+              aria-label="Alternar Modo Lectura"
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[12.5px] sm:text-[13px] font-medium transition-colors focus-visible:outline-none ${
+                modoLecturaActivo
+                  ? 'bg-[var(--color-acento)] text-white border-[var(--color-acento)]'
+                  : 'border-[var(--color-separador)] bg-[var(--color-fondo)] text-[var(--color-secundario)] hover:text-[var(--color-texto)]'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xs:inline">Lectura</span>
+            </button>
+
+            {MODOS_CON_CIERRE.includes(modeKey) && (
+              <>
+                {!modoLecturaActivo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerifAbierta(true);
+                      setVerifError('');
+                      setBarraVisible(true);
+                    }}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--color-acento)]/30 bg-[var(--color-acento)]/10 text-[13px] sm:text-[14px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-acento)]/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                    aria-label="Registrar lo que verificaste fuera de la IA"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden sm:inline">Lo verifiqué por fuera</span>
+                    <span className="sm:hidden">Verifiqué</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvisoSalidaSinCierre(false);
+                    setCierreAbierto(true);
+                    setBarraVisible(true);
+                  }}
+                  disabled={turnosEstudiante === 0 || isLoading}
+                  className="inline-flex items-center gap-1 text-[14px] sm:text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                  aria-label="Terminar la sesión y reflexionar"
+                >
+                  <Flag className="w-4 h-4" />
+                  <span>Terminar</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1187,15 +1290,15 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             aria-modal="true"
             aria-labelledby="titulo-verif"
             onClick={(e) => e.stopPropagation()}
-            className="message-appear w-full max-w-[540px] max-h-full overflow-y-auto overscroll-contain rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
+            className="message-appear w-full max-w-[540px] max-h-full overflow-y-auto overscroll-contain rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)]"
           >
             <div className="p-5 sm:p-6 flex flex-col gap-4">
               <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-[var(--color-acento)]/10 text-[var(--color-acento)] flex items-center justify-center shrink-0">
+                <div className="w-11 h-11 rounded-[10px] bg-[var(--color-acento-suave)] text-[var(--color-acento)] flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 id="titulo-verif" className="text-[18px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
+                  <h3 id="titulo-verif" className="font-literata text-[19px] font-semibold tracking-[-0.01em] text-[var(--color-texto)] leading-snug">
                     Lo verifiqué por fuera
                   </h3>
                   <p className="text-[14px] text-[var(--color-secundario)] leading-relaxed mt-0.5">
@@ -1217,7 +1320,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   rows={2}
                   maxLength={800}
                   placeholder="Ej.: La fecha o definición que mencionamos…"
-                  className="w-full px-3.5 py-2 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[15px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                  className="w-full px-3.5 py-2 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[15px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
                 />
               </label>
 
@@ -1234,7 +1337,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   }}
                   maxLength={500}
                   placeholder="Ej.: Libro guía de Química, enciclopedia, enlace…"
-                  className="w-full h-[42px] px-3.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[15px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                  className="w-full h-[44px] px-3.5 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[15px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
                 />
               </label>
 
@@ -1252,10 +1355,10 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                         setVerifError('');
                       }}
                       aria-pressed={verifResultado === opcion}
-                      className={`h-10 rounded-[12px] border text-[14px] font-semibold transition-colors ${
+                      className={`h-11 rounded-[10px] border text-[14px] font-semibold transition-colors ${
                         verifResultado === opcion
-                          ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-white'
-                          : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)] hover:border-[var(--color-acento)]/50'
+                          ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-[#FBFCFA]'
+                          : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)] hover:border-[var(--color-acento)]'
                       }`}
                     >
                       {opcion}
@@ -1265,7 +1368,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               </div>
 
               {verifError && (
-                <p className="text-[14px] text-[#B3261E] -mt-1" role="alert">
+                <p className="text-[14px] text-[var(--color-rojo)] -mt-1" role="alert">
                   {verifError}
                 </p>
               )}
@@ -1299,6 +1402,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     setVerifFuente('');
                     setVerifResultado('');
                     setVerifError('');
+                    registrarVerificacionExterna(modeKey);
                     handleSendMessage({ texto });
                   }}
                   className="flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold inline-flex items-center justify-center hover:opacity-90 transition-opacity"
@@ -1324,20 +1428,19 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             aria-modal="true"
             aria-labelledby="titulo-cierre"
             onClick={(e) => e.stopPropagation()}
-            className="message-appear w-full max-w-[720px] max-h-full overflow-y-auto overscroll-contain rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
+            className="message-appear w-full max-w-[720px] max-h-full overflow-y-auto overscroll-contain rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)]"
           >
             <div className="p-5 sm:p-6 flex flex-col gap-5">
-              {/* Encabezado con el mismo estilo de la tarjeta de bienvenida del modo */}
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[var(--color-acento)]/10 text-[var(--color-acento)] flex items-center justify-center shrink-0">
+                <div className="w-11 h-11 rounded-[10px] bg-[var(--color-acento-suave)] text-[var(--color-acento)] flex items-center justify-center shrink-0">
                   {cierreEstado === 'listo' ? (
-                    <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
+                    <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
                   ) : (
-                    <Flag className="w-6 h-6" aria-hidden="true" />
+                    <Flag className="w-5 h-5" aria-hidden="true" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 id="titulo-cierre" className="text-[19px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
+                  <h3 id="titulo-cierre" className="font-literata text-[19px] font-semibold tracking-[-0.01em] text-[var(--color-texto)] leading-snug">
                     {cierreEstado === 'listo' ? 'Sesión terminada' : 'Antes de terminar'}
                   </h3>
                   <p className="text-[15px] text-[var(--color-secundario)] leading-relaxed mt-1">
@@ -1349,7 +1452,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               </div>
 
               {avisoSalidaSinCierre && cierreEstado !== 'listo' && (
-                <div className="px-3.5 py-2.5 rounded-[14px] bg-[var(--color-acento)]/10 border border-[var(--color-acento)]/30 text-[14px] font-medium text-[var(--color-texto)] leading-snug">
+                <div className="px-3.5 py-2.5 rounded-[10px] bg-[var(--color-acento-suave)] border border-[var(--color-separador)] text-[14px] font-medium text-[var(--color-texto)] leading-snug">
                   Antes de volver a los modos, completa tu reflexión final para guardar el cierre de tu sesión.
                 </div>
               )}
@@ -1367,7 +1470,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   <button
                     type="button"
                     onClick={onBackToModos}
-                    className="w-full sm:flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-white text-[15px] font-semibold inline-flex items-center justify-center hover:opacity-90 transition-opacity"
+                    className="w-full sm:flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[15px] font-semibold inline-flex items-center justify-center hover:opacity-90 transition-opacity sombra-boton-acento"
                   >
                     Volver a los modos
                   </button>
@@ -1377,7 +1480,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   <div className="flex flex-col gap-4">
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">1</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[13px] font-semibold flex items-center justify-center shrink-0">1</span>
                         <span className="pt-0.5">¿Qué aprendiste tú hoy?</span>
                       </span>
                       <textarea
@@ -1389,13 +1492,13 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                         rows={2}
                         maxLength={1500}
                         placeholder="Escríbelo con tus palabras…"
-                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                        className="w-full px-3.5 py-2.5 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
                       />
                     </label>
 
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">2</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[13px] font-semibold flex items-center justify-center shrink-0">2</span>
                         <span className="pt-0.5">¿Qué comprobaste fuera de la IA hoy y dónde? (Si no comprobaste nada, escríbelo y di qué habrías podido comprobar.)</span>
                       </span>
                       <textarea
@@ -1407,13 +1510,13 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                         rows={2}
                         maxLength={1500}
                         placeholder="Escríbelo con tus palabras…"
-                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                        className="w-full px-3.5 py-2.5 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
                       />
                     </label>
 
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">3</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[13px] font-semibold flex items-center justify-center shrink-0">3</span>
                         <span className="pt-0.5">¿Qué habrías hecho sin ayuda de la IA? ¿Qué parte pensaste por tu cuenta?</span>
                       </span>
                       <textarea
@@ -1425,13 +1528,13 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                         rows={2}
                         maxLength={1500}
                         placeholder="Escríbelo con tus palabras…"
-                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                        className="w-full px-3.5 py-2.5 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none placeholder:text-[var(--color-secundario)]/70 focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
                       />
                     </label>
 
                     <label className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">4</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[13px] font-semibold flex items-center justify-center shrink-0">4</span>
                         <span className="pt-0.5">
                           ¿Qué te quedó dudoso o qué te gustaría profundizar?{' '}
                           <span className="font-normal text-[var(--color-secundario)]">(opcional)</span>
@@ -1442,13 +1545,13 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                         onChange={(e) => setDudas(e.target.value)}
                         rows={2}
                         maxLength={1500}
-                        className="w-full px-3.5 py-2.5 rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
+                        className="w-full px-3.5 py-2.5 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[16px] leading-snug resize-none focus:outline-none focus:border-[var(--color-acento)] focus:bg-[var(--color-superficie)] transition-colors"
                       />
                     </label>
 
                     <div className="flex flex-col gap-2">
                       <span className="flex items-start gap-2.5 text-[15px] font-medium text-[var(--color-texto)] leading-snug">
-                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[13px] font-semibold flex items-center justify-center shrink-0">5</span>
+                        <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[13px] font-semibold flex items-center justify-center shrink-0">5</span>
                         <span className="pt-0.5">¿Qué tan seguro te sientes de explicarlo sin ayuda?</span>
                       </span>
                       <div className="flex gap-2" role="group" aria-label="Nivel de seguridad de 1 a 5">
@@ -1461,10 +1564,10 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                               setCierreError('');
                             }}
                             aria-pressed={confianza === n}
-                            className={`flex-1 h-10 rounded-[12px] border text-[15px] font-semibold transition-colors ${
+                            className={`flex-1 h-11 rounded-[10px] border text-[15px] font-semibold transition-colors ${
                               confianza === n
-                                ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-white'
-                                : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)] hover:border-[var(--color-acento)]/50'
+                                ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-[#FBFCFA]'
+                                : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-texto)] hover:border-[var(--color-acento)]'
                             }`}
                           >
                             {n}
@@ -1479,7 +1582,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   </div>
 
                   {cierreError && (
-                    <p className="text-[14px] text-[#B3261E] -mt-1" role="alert">
+                    <p className="text-[14px] text-[var(--color-rojo)] -mt-1" role="alert">
                       {cierreError}
                     </p>
                   )}
@@ -1531,25 +1634,35 @@ if (msg.pregunta) {
   const p = msg.pregunta;
   return (
     <div key={msg.id} data-mensaje={msg.id}>
-      <TarjetaPregunta
-        pregunta={p}
-        estado={estadosIcfes[p.id] || {}}
-        activa={ultimoMsgPregunta?.id === msg.id}
-        ocupado={isLoading || cargandoPregunta}
-        marcadorArea={marcador[p.area]}
-        onResponder={(letra, justificacion) => responderIcfes(p, letra, justificacion)}
-        onPista={() => pistaIcfes(p)}
-        onSiguiente={() => pedirPregunta(p.area)}
-        onCambiarArea={mostrarSelectorAreas}
-      />
+      <React.Suspense
+        fallback={
+          <div className="rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 p-6 flex items-center justify-center">
+            <span className="w-6 h-6 rounded-full border-2 border-[var(--color-separador)] border-t-[var(--color-acento)] animate-spin" aria-label="Cargando pregunta" />
+          </div>
+        }
+      >
+        <TarjetaPregunta
+          pregunta={p}
+          estado={estadosIcfes[p.id] || {}}
+          activa={ultimoMsgPregunta?.id === msg.id}
+          ocupado={isLoading || cargandoPregunta}
+          marcadorArea={marcador[p.area]}
+          onResponder={(letra, justificacion) => responderIcfes(p, letra, justificacion)}
+          onPista={() => pistaIcfes(p)}
+          onSiguiente={() => pedirPregunta(p.area)}
+          onCambiarArea={mostrarSelectorAreas}
+        />
+      </React.Suspense>
     </div>
   );
 }
 if (msg.selector) {
   return (
-    <div key={msg.id} data-mensaje={msg.id} className="message-appear rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-5 sm:p-6">
-      <p className="text-[17px] font-semibold text-[var(--color-texto)]">¿Qué área quieres practicar ahora?</p>
-      <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} />
+    <div key={msg.id} data-mensaje={msg.id} className="message-appear rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] p-5 sm:p-6">
+      <p className="font-literata text-[18px] font-semibold text-[var(--color-texto)]">¿Qué área quieres practicar ahora?</p>
+      <React.Suspense fallback={<div className="h-28 mt-3 rounded-[10px] bg-[var(--color-fondo)] animate-pulse" />}>
+        <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} />
+      </React.Suspense>
     </div>
   );
 }
@@ -1558,7 +1671,7 @@ if (msg.selector) {
             if (msg.avisoSistema) {
               return (
                 <div key={msg.id} className="flex justify-center my-2 message-appear">
-                  <span className="px-3.5 py-1 rounded-full bg-[var(--color-superficie)] border border-[var(--color-separador)] text-[13px] font-medium text-[var(--color-secundario)] shadow-2xs">
+                  <span className="px-3.5 py-1 rounded-full bg-[var(--color-superficie)] border border-[var(--color-separador)] text-[13px] font-medium text-[var(--color-secundario)]">
                     {msg.text}
                   </span>
                 </div>
@@ -1580,7 +1693,7 @@ if (msg.selector) {
                       {listaArchivosMsg.map((arch, idxArch) => (
                         <div
                           key={`${arch.nombre}-${idxArch}`}
-                          className="bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-xs max-w-full"
+                          className="bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[10px] px-3 py-2 flex items-center gap-2.5 max-w-full"
                         >
                           {arch.mimeType.startsWith('image/') ? (
                             <ImageIcon className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
@@ -1602,9 +1715,9 @@ if (msg.selector) {
                     </div>
                   )}
 
-                  {/* Burbuja del estudiante: verde #0E5C36, texto blanco, radio 20px (esquina inferior derecha 6px) */}
+                  {/* Burbuja del estudiante */}
                   {msg.text && (
-                    <div className="max-w-[85%] sm:max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-2.5 bg-[#0E5C36] text-white shadow-xs text-[16px] leading-relaxed whitespace-pre-wrap select-text">
+                    <div className="burbuja-usuario max-w-[85%] sm:max-w-[75%] rounded-[18px] rounded-br-[6px] px-4 py-2.5 bg-[#1F5A40] text-[#FBFCFA] text-[16px] leading-relaxed whitespace-pre-wrap select-text">
                       {msg.text}
                     </div>
                   )}
@@ -1612,61 +1725,66 @@ if (msg.selector) {
               );
             }
 
-            // Tarjeta de bienvenida del modo (instrucciones iniciales)
+            // Tarjeta de bienvenida del modo
             if (msg.id === 'greeting') {
               const IconoModo = ICONOS_MODO[modeKey] || MessageSquareQuote;
               const pasos = modo.guia || [];
               const ejemplos = ideasPara(modeKey);
               const sinMensajes = messages.length === 1;
+              if (modoLecturaActivo && !sinMensajes && !esIcfes) {
+                return null;
+              }
               return (
-                <div key={msg.id} className="message-appear rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
-                  <div className="p-5 sm:p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-[var(--color-acento)]/10 text-[var(--color-acento)] flex items-center justify-center shrink-0">
-                        <IconoModo className="w-6 h-6" aria-hidden="true" />
+                <div key={msg.id} className="message-appear rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] overflow-hidden">
+                  {!modoLecturaActivo && (
+                    <div className="p-5 sm:p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-11 h-11 rounded-[10px] bg-[var(--color-acento-suave)] text-[var(--color-acento)] flex items-center justify-center shrink-0">
+                          <IconoModo className="w-5 h-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-literata text-[19px] font-semibold tracking-[-0.01em] text-[var(--color-texto)] leading-snug">
+                            {modo.titulo}
+                          </h3>
+                          {modo.descripcion && (
+                            <p className="text-[15px] text-[var(--color-secundario)] leading-relaxed mt-1">
+                              {modo.descripcion}
+                            </p>
+                          )}
+                          {(modo.busqueda || modo.adjuntos) && (
+                            <div className="flex flex-wrap gap-1.5 mt-3">
+                              {modo.busqueda && (
+                                <span className="inline-flex items-center gap-1 text-[13px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[var(--color-secundario)]">
+                                  <Globe className="w-3.5 h-3.5" aria-hidden="true" /> Busca en Google
+                                </span>
+                              )}
+                              {modo.adjuntos && (
+                                <span className="inline-flex items-center gap-1 text-[13px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[var(--color-secundario)]">
+                                  <Paperclip className="w-3.5 h-3.5" aria-hidden="true" /> Acepta archivos
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-[19px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
-                          {modo.titulo}
-                        </h3>
-                        {modo.descripcion && (
-                          <p className="text-[15px] text-[var(--color-secundario)] leading-relaxed mt-1">
-                            {modo.descripcion}
-                          </p>
-                        )}
-                        {(modo.busqueda || modo.adjuntos) && (
-                          <div className="flex flex-wrap gap-1.5 mt-3">
-                            {modo.busqueda && (
-                              <span className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] text-[var(--color-secundario)]">
-                                <Globe className="w-3.5 h-3.5" aria-hidden="true" /> Busca en Google
+
+                      {pasos.length > 0 && (
+                        <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label="Cómo funciona">
+                          {pasos.map((paso, i) => (
+                            <li key={i} className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] px-3.5 py-3">
+                              <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[12px] font-semibold flex items-center justify-center shrink-0">
+                                {i + 1}
                               </span>
-                            )}
-                            {modo.adjuntos && (
-                              <span className="inline-flex items-center gap-1 text-[12px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] text-[var(--color-secundario)]">
-                                <Paperclip className="w-3.5 h-3.5" aria-hidden="true" /> Acepta archivos
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                              <span className="text-[14px] leading-snug text-[var(--color-texto)]">{paso}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
                     </div>
+                  )}
 
-                    {pasos.length > 0 && (
-                      <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label="Cómo funciona">
-                        {pasos.map((paso, i) => (
-                          <li key={i} style={{ animationDelay: `${180 + i * 90}ms` }} className="anim-entrada flex sm:flex-col items-start gap-3 sm:gap-2 rounded-2xl bg-[var(--color-fondo)] px-3.5 py-3">
-                            <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-white text-[12px] font-semibold flex items-center justify-center shrink-0">
-                              {i + 1}
-                            </span>
-                            <span className="text-[14px] leading-snug text-[var(--color-texto)]">{paso}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </div>
-
-                  <div className="px-5 sm:px-6 py-4 border-t border-[var(--color-separador)]/60">
-                    <p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--color-acento)] mb-1.5">
+                  <div className={`px-5 sm:px-6 py-4 ${!modoLecturaActivo ? 'border-t border-[var(--color-separador)]' : ''}`}>
+                    <p className="text-[14px] font-semibold text-[var(--color-acento)] mb-1.5">
                       Para empezar
                     </p>
                     <div className="prose-apple select-text">
@@ -1674,8 +1792,10 @@ if (msg.selector) {
                     </div>
 
                     {esIcfes && (
-<SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} areaActual={preguntaActiva?.area} />
-)}
+                      <React.Suspense fallback={<div className="h-28 mt-3 rounded-2xl bg-[var(--color-fondo)] animate-pulse" />}>
+                        <SelectorArea onElegir={pedirPregunta} deshabilitado={cargandoPregunta || isLoading} marcador={marcador} areaActual={preguntaActiva?.area} />
+                      </React.Suspense>
+                    )}
 
                     {/* Apartado especial propuesto por el Prof. Sergio en el Tutor: subir ejercicios desarrollados en clase para que la IA explique con el mismo método del profesor */}
                     {modeKey === 'tutor' && modo.adjuntos && (
@@ -1744,43 +1864,62 @@ if (msg.selector) {
                       </div>
                     )}
 
-                    {sinMensajes && (ejemplos.length > 0 || modeKey === 'tutor' || modeKey === 'escrito') && (
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {ejemplos.map((ej) => (
-                          <button
-                            key={ej}
-                            type="button"
-                            onClick={() => {
-                              setInputText(ej);
-                              textareaRef.current?.focus();
-                            }}
-                            className="text-left text-[14px] leading-snug px-3.5 py-2 min-h-[44px] rounded-2xl border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[var(--color-texto)] hover:border-[var(--color-acento)] transition-colors"
-                          >
-                            {ej}
-                          </button>
-                        ))}
-                        {ejemplos.length > 0 && (
+                    {!esIcfes && sinMensajes && !modoLecturaActivo && (
+                      <RutaGuiadaModo
+                        modeKey={modeKey}
+                        permiteAdjuntos={!!modo.adjuntos}
+                        ejemplosClaseCount={ejemplosClaseFiles.length}
+                        onPrepararPrompt={(promptArmado) => {
+                          setInputText(promptArmado);
+                          textareaRef.current?.focus();
+                        }}
+                        onEnviarDirecto={(promptArmado) => {
+                          handleSendMessage({ texto: promptArmado });
+                        }}
+                        onSubirArchivo={() => {
+                          activarAvisoPrivacidadUnaVez();
+                          fileInputRef.current?.click();
+                        }}
+                        onSubirEjemploClase={() => {
+                          activarAvisoPrivacidadUnaVez();
+                          ejemplosClaseInputRef.current?.click();
+                        }}
+                        onAbrirVerificacionExterna={() => {
+                          setVerifAbierta(true);
+                          setVerifError('');
+                        }}
+                      />
+                    )}
+
+                    {sinMensajes && ejemplos.length > 0 && !modoLecturaActivo && (
+                      <div className="mt-4 pt-3 border-t border-[var(--color-separador)]/50">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-[12px] font-semibold text-[var(--color-secundario)]">
+                            O elige una pregunta disparadora rápida:
+                          </span>
                           <button
                             type="button"
                             onClick={() => setRondaIdeas((r) => r + 1)}
-                            className="self-center text-[12px] px-2 py-1 bg-transparent text-[var(--color-texto)] opacity-50 hover:opacity-90 hover:underline transition-opacity"
+                            className="text-[12px] font-medium px-2 py-0.5 rounded-lg text-[var(--color-acento)] hover:underline transition-opacity"
                           >
-                            ↻ otras ideas
+                            ↻ Ver otras preguntas
                           </button>
-                        )}
-                        {(modeKey === 'tutor' || modeKey === 'escrito') && modo.adjuntos && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              activarAvisoPrivacidadUnaVez();
-                              fileInputRef.current?.click();
-                            }}
-                            className="inline-flex items-center justify-center gap-2 text-[14px] font-medium px-4 py-2 min-h-[44px] rounded-2xl bg-[var(--color-acento)] text-white hover:opacity-90 transition-opacity"
-                          >
-                            <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
-                            <span>{modeKey === 'tutor' ? 'Subir ejercicio por resolver' : 'Subir mi escrito'}</span>
-                          </button>
-                        )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {ejemplos.map((ej) => (
+                            <button
+                              key={ej}
+                              type="button"
+                              onClick={() => {
+                                setInputText(ej);
+                                textareaRef.current?.focus();
+                              }}
+                              className="text-left text-[13.5px] leading-snug px-3.5 py-2 min-h-[40px] rounded-xl border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[var(--color-texto)] hover:border-[var(--color-acento)] transition-colors"
+                            >
+                              {ej}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1864,8 +2003,8 @@ if (msg.selector) {
 
                   {/* Chips redondeados de fuentes debajo de la respuesta */}
                   {msg.fuentes && msg.fuentes.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-[var(--color-separador)]/50">
-                      <div className="text-[12px] font-semibold text-[var(--color-secundario)] uppercase tracking-wider mb-2">
+                    <div className="mt-4 pt-3 border-t border-[var(--color-separador)]">
+                      <div className="text-[13px] font-semibold text-[var(--color-secundario)] mb-2">
                         Fuentes consultadas
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -1942,17 +2081,17 @@ Cambiar de área
 </button>
 </div>
 )}
-{/* Tarjeta discreta de error con botón Reintentar */}
+          {/* Tarjeta discreta de error con botón Reintentar */}
           {errorMessage && (
-            <div className="p-3.5 bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-2xl text-[14px] text-[var(--color-texto)] flex items-start justify-between gap-3 shadow-xs">
+            <div className="p-3.5 bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[14px] text-[14px] text-[var(--color-texto)] flex items-start justify-between gap-3">
               <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-[#9B1C1C] shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-[var(--color-rojo)] shrink-0 mt-0.5" />
                 <p className="text-[var(--color-secundario)]">{errorMessage}</p>
               </div>
               <button
                 onClick={reintentar}
                 type="button"
-                className="px-3 py-1 rounded-lg bg-[var(--color-fondo)] text-[var(--color-texto)] font-medium text-[13px] hover:bg-[var(--color-separador)]/50 transition-colors shrink-0"
+                className="px-3 py-1 rounded-full bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[var(--color-texto)] font-medium text-[13px] hover:border-[var(--color-acento)] transition-colors shrink-0"
               >
                 Reintentar
               </button>
@@ -2031,7 +2170,7 @@ Cambiar de área
               e.preventDefault();
               handleSendMessage();
             }}
-            className="w-full min-h-[52px] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[28px] shadow-sm px-2.5 py-1.5 flex items-center gap-2 transition-all"
+            className="w-full min-h-[52px] bg-[var(--color-superficie)] border border-[var(--color-separador)] rounded-[28px] px-2.5 py-1.5 flex items-center gap-2 transition-all"
           >
             {/* Input para adjuntar uno o varios archivos (solo en modos con adjuntos=true) */}
             {modo.adjuntos && (
@@ -2076,7 +2215,7 @@ Cambiar de área
               className={`flex-1 bg-transparent py-1.5 ${modo.adjuntos ? 'pl-0.5' : 'pl-2'} pr-1 text-[16px] text-[var(--color-texto)] placeholder:text-[var(--color-secundario)] resize-none focus:outline-none max-h-[144px] leading-snug self-center`}
             />
 
-            {/* Botón enviar circular dentro del campo a la derecha (verde, icono flecha hacia arriba, deshabilitado y gris si está vacío) */}
+            {/* Botón enviar circular dentro del campo a la derecha */}
             <button
               type="submit"
               disabled={
@@ -2085,11 +2224,12 @@ Cambiar de área
                 isProcessingFile
               }
               className={`w-[38px] h-[38px] p-0 rounded-full flex items-center justify-center self-center shrink-0 leading-none transition-all ${
-                (inputText.trim() || attachedFiles.length > 0 || ejemplosClaseFiles.length > 0) &&
+                (inputText.trim() || attachedFiles.length > 0 || ejemplosClaseFiles.length === 0 && false) ||
+                ((inputText.trim() || attachedFiles.length > 0 || ejemplosClaseFiles.length > 0) &&
                 !isLoading &&
-                !isProcessingFile
-                  ? 'bg-[#0E5C36] dark:bg-[#2E9E64] text-white cursor-pointer active:scale-95 shadow-xs'
-                  : 'bg-[var(--color-separador)]/50 text-[var(--color-secundario)] cursor-not-allowed opacity-60'
+                !isProcessingFile)
+                  ? 'bg-[var(--color-acento)] text-[#FBFCFA] cursor-pointer active:scale-95 sombra-boton-acento'
+                  : 'bg-[var(--color-separador)] text-[var(--color-secundario)] cursor-not-allowed opacity-60'
               }`}
               title="Enviar mensaje (Enter)"
               aria-label="Enviar mensaje"

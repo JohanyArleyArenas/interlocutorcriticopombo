@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Lightbulb, ArrowRight, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
-import { VisorPaginas, RecortePdf } from './VisorPagina.tsx';
+
+// Carga diferida del visor PDF (pdfjs-dist) para no bloquear la apertura del modo
+const cargarVisorPdf = () => import('./VisorPagina.tsx');
+const VisorPaginas = React.lazy(() => cargarVisorPdf().then((m) => ({ default: m.VisorPaginas })));
+const RecortePdf = React.lazy(() => cargarVisorPdf().then((m) => ({ default: m.RecortePdf })));
 
 // Contenido de la pregunta extraído del cuadernillo: lectura, enunciado y opciones en texto.
 // Lo que no se puede pasar a texto sin deformarlo (gráficas, tablas, fórmulas, imágenes) llega como
@@ -63,7 +67,7 @@ export function SelectorArea({
   areaActual?: string;
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3">
       {AREAS_ENTRENADOR.map((a) => {
         const m = marcador?.[a.clave];
         return (
@@ -72,21 +76,21 @@ export function SelectorArea({
             type="button"
             disabled={deshabilitado}
             onClick={() => onElegir(a.clave)}
-            className={`text-left px-4 py-3 min-h-[56px] rounded-2xl border transition-colors disabled:opacity-50 ${
+            className={`text-left px-4 py-3 min-h-[56px] rounded-[14px] border transition-colors disabled:opacity-50 ${
               areaActual === a.clave
-                ? 'border-[var(--color-acento)] bg-[var(--color-acento)]/5'
+                ? 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]'
                 : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]'
             }`}
           >
             <span className="flex items-center justify-between gap-2">
-              <span className="text-[15px] font-semibold text-[var(--color-texto)]">{a.nombre}</span>
+              <span className="font-literata text-[15.5px] font-semibold text-[var(--color-texto)]">{a.nombre}</span>
               {m && m.intentos > 0 && (
                 <span className="text-[12px] font-medium text-[var(--color-secundario)]">
                   {m.aciertos}/{m.intentos}
                 </span>
               )}
             </span>
-            <span className="block text-[13px] text-[var(--color-secundario)] mt-0.5">{a.detalle}</span>
+            <span className="block text-[13.5px] text-[var(--color-secundario)] mt-0.5">{a.detalle}</span>
           </button>
         );
       })}
@@ -128,7 +132,9 @@ function Bloques({ bloques, cuadernilloId, etiqueta, enunciado, resaltar }: { bl
             {resaltarEspacio(b.texto, resaltar)}
           </p>
         ) : (
-          <RecortePdf key={i} url={`/api/icfes/pagina/${cuadernilloId}/${b.pagina}`} rect={b.rect} etiqueta={etiqueta} />
+          <React.Suspense fallback={<div className="h-32 rounded-xl bg-[var(--color-fondo)] animate-pulse" />}>
+            <RecortePdf key={i} url={`/api/icfes/pagina/${cuadernilloId}/${b.pagina}`} rect={b.rect} etiqueta={etiqueta} />
+          </React.Suspense>
         )
       )}
     </div>
@@ -187,12 +193,12 @@ export function TarjetaPregunta({
         : 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-secundario)] opacity-60';
     }
     if (respondida) {
-      if (estado.clave === letra) return 'bg-[#0E5C36] border-[#0E5C36] text-white';
-      if (estado.respuesta === letra) return 'bg-[#B3261E] border-[#B3261E] text-white';
+      if (estado.clave === letra) return 'bg-[var(--color-acento)] border-[var(--color-acento)] text-[#FBFCFA]';
+      if (estado.respuesta === letra) return 'bg-[var(--color-rojo)] border-[var(--color-rojo)] text-[#FBFCFA]';
       return 'bg-[var(--color-fondo)] border-[var(--color-separador)] text-[var(--color-secundario)] opacity-60';
     }
     return elegida === letra
-      ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-white'
+      ? 'bg-[var(--color-acento)] border-[var(--color-acento)] text-[#FBFCFA]'
       : 'bg-[var(--color-superficie)] border-[var(--color-separador)] text-[var(--color-texto)] hover:border-[var(--color-acento)]';
   };
 
@@ -204,12 +210,12 @@ export function TarjetaPregunta({
         : 'border-[var(--color-separador)] bg-[var(--color-superficie)] opacity-60';
     }
     if (respondida) {
-      if (estado.clave === letra) return 'border-[#0E5C36] bg-[#0E5C36]/[0.07]';
-      if (estado.respuesta === letra) return 'border-[#B3261E] bg-[#B3261E]/[0.07]';
+      if (estado.clave === letra) return 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]';
+      if (estado.respuesta === letra) return 'border-[var(--color-rojo)] bg-[var(--color-rojo)]/10';
       return 'border-[var(--color-separador)] bg-[var(--color-superficie)] opacity-60';
     }
     return elegida === letra
-      ? 'border-[var(--color-acento)] bg-[var(--color-acento)]/[0.06] ring-1 ring-[var(--color-acento)]'
+      ? 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]/70 ring-1 ring-[var(--color-acento)]'
       : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]';
   };
 
@@ -232,37 +238,37 @@ export function TarjetaPregunta({
   );
 
   return (
-    <div className="message-appear rounded-[20px] bg-[var(--color-superficie)] border border-[var(--color-separador)]/60 shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+    <div className="message-appear rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] overflow-hidden">
       <div className="p-4 sm:p-5 flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--color-acento)]">{pregunta.areaNombre}</p>
-            <h3 className="text-[19px] font-semibold tracking-tight text-[var(--color-texto)] leading-snug">
+            <p className="text-[13px] font-semibold text-[var(--color-acento)]">{pregunta.areaNombre}</p>
+            <h3 className="font-literata text-[19px] font-semibold tracking-[-0.01em] text-[var(--color-texto)] leading-snug">
               Pregunta {pregunta.orden ?? pregunta.numero}
-              {espacio ? <span className="font-normal text-[var(--color-secundario)]"> · espacio ({espacio})</span> : null}
-              {pregunta.examen && !pregunta.orden ? <span className="font-normal text-[var(--color-secundario)]"> · {pregunta.examen}</span> : null}
+              {espacio ? <span className="font-normal text-[var(--color-secundario)]">, espacio ({espacio})</span> : null}
+              {pregunta.examen && !pregunta.orden ? <span className="font-normal text-[var(--color-secundario)]">, {pregunta.examen}</span> : null}
             </h3>
-            <p className="text-[13px] text-[var(--color-secundario)] leading-snug mt-0.5">{pregunta.cuadernillo}</p>
+            <p className="text-[13.5px] text-[var(--color-secundario)] leading-snug mt-0.5">{pregunta.cuadernillo}</p>
           </div>
           {marcadorArea && marcadorArea.intentos > 0 && (
-            <span className="shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] text-[var(--color-texto)]">
+            <span className="shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[var(--color-texto)]">
               {marcadorArea.aciertos}/{marcadorArea.intentos} aciertos
             </span>
           )}
         </div>
 
         {pregunta.reinicio && activa && !respondida && (
-          <p className="text-[13px] text-[var(--color-secundario)] -mt-2">Ya viste todas las preguntas de esta área en esta sesión; empezamos de nuevo.</p>
+          <p className="text-[13.5px] text-[var(--color-secundario)] -mt-2">Ya viste todas las preguntas de esta área en esta sesión; empezamos de nuevo.</p>
         )}
 
         {contenido ? (
           <>
             {contenido.contexto && contenido.contexto.bloques.length > 0 && (
-              <section className="rounded-2xl bg-[var(--color-fondo)] border border-[var(--color-separador)]/70 p-3.5 sm:p-4 flex flex-col gap-2.5" aria-label="Texto de la pregunta">
+              <section className="rounded-[14px] bg-[var(--color-fondo)] border border-[var(--color-separador)] p-3.5 sm:p-4 flex flex-col gap-2.5" aria-label="Texto de la pregunta">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[12px] font-semibold uppercase tracking-wider text-[var(--color-secundario)]">
+                  <p className="text-[13px] font-semibold text-[var(--color-secundario)]">
                     {pregunta.grupoTotal && pregunta.grupoTotal > 1 && pregunta.grupoPos
-                      ? `Lee el texto · pregunta ${pregunta.grupoPos} de ${pregunta.grupoTotal} sobre este texto`
+                      ? `Lee el texto (pregunta ${pregunta.grupoPos} de ${pregunta.grupoTotal} sobre este texto)`
                       : rotuloContexto(contenido.contexto.titulo, pregunta.numero)}
                   </p>
                   {respondida && (
@@ -325,7 +331,9 @@ export function TarjetaPregunta({
           </>
         ) : (
           <>
-            <VisorPaginas urls={urls} marcaY={pregunta.y} titulo={titulo} enfocar={activa && !respondida} />
+            <React.Suspense fallback={<div className="h-64 rounded-xl bg-[var(--color-fondo)] animate-pulse" />}>
+              <VisorPaginas urls={urls} marcaY={pregunta.y} titulo={titulo} enfocar={activa && !respondida} />
+            </React.Suspense>
             <p className="text-[14px] text-[var(--color-texto)] leading-snug">
               Lee con calma la <strong>pregunta {pregunta.numero}</strong> (la flecha naranja te la señala){urls.length > 1 ? ' y el texto que la acompaña' : ''}. Elige tu respuesta:
             </p>
@@ -361,14 +369,14 @@ export function TarjetaPregunta({
           <div className="flex items-center gap-2 text-[15px] font-medium">
             {estado.correcta === true && (
               <>
-                <CheckCircle2 className="w-5 h-5 text-[#0E5C36]" aria-hidden="true" />
-                <span className="text-[#0E5C36]">Respondiste {estado.respuesta}: correcta</span>
+                <CheckCircle2 className="w-5 h-5 text-[var(--color-acento)]" aria-hidden="true" />
+                <span className="text-[var(--color-acento)]">Respondiste {estado.respuesta}: correcta</span>
               </>
             )}
             {estado.correcta === false && (
               <>
-                <XCircle className="w-5 h-5 text-[#B3261E]" aria-hidden="true" />
-                <span className="text-[#B3261E]">
+                <XCircle className="w-5 h-5 text-[var(--color-rojo)]" aria-hidden="true" />
+                <span className="text-[var(--color-rojo)]">
                   Respondiste {estado.respuesta}; la clave oficial es {estado.clave}
                 </span>
               </>

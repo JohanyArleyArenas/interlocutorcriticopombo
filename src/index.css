@@ -1,43 +1,46 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Interlocutor Crítico · Liceo Superior Rafael Pombo
-   Apple Human Interface Guidelines Design System
+   Interlocutor Crítico — Liceo Superior Rafael Pombo (San Gil)
+   Cuaderno de estudio crítico
    ============================================================ */
 
 :root {
-  --color-fondo: #F5F5F7;
-  --color-superficie: #FFFFFF;
-  --color-texto: #1D1D1F;
-  --color-secundario: #6E6E73;
-  --color-separador: #D2D2D7;
-  --color-acento: #0E5C36;
-  --color-oro: #B8912A;
+  --color-fondo: #EEF1EC;
+  --color-superficie: #FBFCFA;
+  --color-texto: #1A2420;
+  --color-secundario: #5B6862;
+  --color-separador: #D5DDD6;
+  --color-acento: #1F5A40;
+  --color-acento-suave: #E2ECE5;
+  --color-rojo: #9E2B25;
+  --color-oro: #A97C1F;
 
-  --sombra-tarjeta: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --sombra-flotante: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --sombra-boton: 0 2px 8px rgba(31, 90, 64, 0.16);
+  --sombra-barra: 0 -2px 12px rgba(26, 36, 32, 0.05);
 
-  --font-sistema: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-gotica: "Grenze Gotisch", serif;
+  --font-serif: "Literata", Georgia, Cambria, "Times New Roman", serif;
+  --font-sans: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-fondo: #000000;
-    --color-superficie: #1C1C1E;
-    --color-texto: #F5F5F7;
-    --color-secundario: #98989D;
-    --color-separador: #38383A;
-    --color-acento: #2E9E64;
-    --color-oro: #D4A838;
+    --color-fondo: #121815;
+    --color-superficie: #1B2420;
+    --color-texto: #E8EEE9;
+    --color-secundario: #9AA8A0;
+    --color-separador: #2C3832;
+    --color-acento: #6DBB92;
+    --color-acento-suave: #22352B;
+    --color-rojo: #E0776C;
+    --color-oro: #D9B25A;
 
-    --sombra-tarjeta: 0 1px 3px rgba(0, 0, 0, 0.3);
-    --sombra-flotante: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --sombra-boton: 0 2px 10px rgba(0, 0, 0, 0.35);
+    --sombra-barra: 0 -2px 12px rgba(0, 0, 0, 0.3);
   }
 }
 
 @layer base {
-  /* Todos los botones activos muestran la manita al pasar el mouse */
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   label[for] {
@@ -47,15 +50,14 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    /* Reserva siempre el espacio de la barra de desplazamiento: evita el salto lateral al entrar o salir de un modo */
     scrollbar-gutter: stable;
-    font-family: var(--font-sistema);
+    font-family: var(--font-sans);
   }
 
   body {
-    font-family: var(--font-sistema);
-    font-size: 17px;
-    line-height: 1.47059;
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.55;
     background-color: var(--color-fondo);
     color: var(--color-texto);
     min-height: 100vh;
@@ -66,38 +68,55 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  h1, h2, h3, h4 {
+  h1, h2, h3, .font-editorial {
+    font-family: var(--font-serif);
     font-weight: 600;
-    letter-spacing: -0.018em;
     color: var(--color-texto);
   }
 
   h1 {
-    font-size: 2rem;
-    line-height: 1.15;
-    font-weight: 700;
-    letter-spacing: -0.022em;
+    font-size: 30px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   h2 {
-    font-size: 1.5rem;
-    line-height: 1.2;
-    letter-spacing: -0.02em;
+    font-size: 19px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.005em;
   }
 
   h3 {
-    font-size: 1.25rem;
-    line-height: 1.25;
-    letter-spacing: -0.015em;
+    font-size: 18px;
+    line-height: 1.3;
+    font-weight: 600;
   }
 
   ::selection {
-    background: rgba(14, 92, 54, 0.2);
-    color: var(--color-texto);
+    background: var(--color-acento-suave);
+    color: var(--color-acento);
   }
 }
 
-/* Scrollbar Apple Style */
+.font-literata {
+  font-family: var(--font-serif);
+}
+
+.font-atkinson {
+  font-family: var(--font-sans);
+}
+
+.sombra-boton-acento {
+  box-shadow: var(--sombra-boton);
+}
+
+.sombra-barra-inferior {
+  box-shadow: var(--sombra-barra);
+}
+
+/* Barra de desplazamiento discreta */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-separador) transparent;
@@ -112,92 +131,73 @@
   background: var(--color-secundario);
 }
 
-/* Tarjeta Modo Apple HIG */
-.apple-card {
+/* Mosaico de cuaderno de estudio (sin sombras grises ni elevaciones artificiales) */
+.apple-card,
+.mosaico-estudio {
   background-color: var(--color-superficie);
-  border-radius: 20px;
+  border-radius: 14px;
   border: 1px solid var(--color-separador);
-  padding: 24px;
-  box-shadow: var(--sombra-tarjeta);
-  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  padding: 20px;
   display: flex;
   flex-direction: column;
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .apple-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  }
-}
-
-.apple-card:active {
-  transform: scale(0.985);
-}
-
-/* Foco visible con anillo verde accesible */
-button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+/* Foco visible con anillo de 2px en color acento */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="tab"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--color-fondo), 0 0 0 5px var(--color-acento) !important;
+  box-shadow: 0 0 0 2px var(--color-acento) !important;
 }
 
-/* Animación sutil de aparición de mensajes */
+/* Aparición suave de mensajes y pantallas */
 @keyframes messageFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
 .message-appear {
-  animation: messageFadeIn 500ms cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: messageFadeIn 260ms ease-out both;
 }
 
-/* Transición suave al entrar a cada vista (inicio ↔ modo) */
-@keyframes vistaEntrada {
-  /* Solo opacidad: nada se desplaza al entrar o salir de un modo */
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 .vista-entrada {
-  animation: vistaEntrada 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-/* Las tarjetas de modos aparecen una tras otra */
-.tarjeta-entrada {
-  animation: vistaEntrada 480ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-@media (prefers-reduced-motion: reduce) {
-  .vista-entrada, .tarjeta-entrada, .message-appear {
-    animation: vistaFade 200ms ease backwards;
-  }
-  @keyframes vistaFade { from { opacity: 0; } to { opacity: 1; } }
+  animation: messageFadeIn 240ms ease-out both;
 }
 
-/* Animación pulsante para búsqueda / espera */
+/* Indicador de espera en el chat */
 @keyframes pulseDot {
-  0%, 100% { opacity: 0.3; transform: scale(0.85); }
-  50% { opacity: 1; transform: scale(1.15); }
+  0%, 100% { opacity: 0.3; transform: scale(0.88); }
+  50% { opacity: 1; transform: scale(1.1); }
 }
 
 .dot-1 { animation: pulseDot 1.2s infinite ease-in-out; }
 .dot-2 { animation: pulseDot 1.2s infinite ease-in-out 0.2s; }
 .dot-3 { animation: pulseDot 1.2s infinite ease-in-out 0.4s; }
 
-/* Markdown styling inside assistant response */
+/* Texto de las respuestas del agente en Literata */
 .prose-apple {
+  font-family: var(--font-serif);
   color: var(--color-texto);
-  font-size: 16.5px;
+  font-size: 16px;
   line-height: 1.55;
 }
 
 .prose-apple p {
-  margin-top: 0.6em;
-  margin-bottom: 0.6em;
+  margin-top: 0.65em;
+  margin-bottom: 0.65em;
 }
 
 .prose-apple h1, .prose-apple h2, .prose-apple h3, .prose-apple h4 {
+  font-family: var(--font-serif);
   font-weight: 600;
   margin-top: 1.2em;
   margin-bottom: 0.4em;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .prose-apple h1 { font-size: 1.35rem; }
@@ -206,14 +206,14 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
 
 .prose-apple ul {
   list-style-type: disc;
-  padding-left: 1.3em;
+  padding-left: 1.35em;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
 .prose-apple ol {
   list-style-type: decimal;
-  padding-left: 1.3em;
+  padding-left: 1.35em;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
@@ -240,7 +240,7 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
   font-size: 0.9em;
   padding: 0.15em 0.35em;
   border-radius: 6px;
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--color-acento-suave);
   font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
 }
 
@@ -248,7 +248,8 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
   width: 100%;
   border-collapse: collapse;
   margin: 1em 0;
-  font-size: 0.9em;
+  font-size: 0.92em;
+  font-family: var(--font-sans);
 }
 
 .prose-apple th, .prose-apple td {
@@ -258,14 +259,80 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
 }
 
 .prose-apple th {
-  background-color: rgba(0, 0, 0, 0.03);
-  font-weight: 600;
+  background-color: var(--color-acento-suave);
+  font-weight: 700;
 }
 
 .prose-apple a {
   color: var(--color-acento);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* Modo Lectura en el chat: mayor tamaño tipográfico e interlineado amplio */
+.modo-lectura-chat .prose-apple {
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+.modo-lectura-chat .prose-apple p {
+  margin-top: 0.85em;
+  margin-bottom: 0.85em;
+}
+
+.modo-lectura-chat .prose-apple li {
+  margin-top: 0.45em;
+  margin-bottom: 0.45em;
+}
+
+.modo-lectura-chat .prose-apple h1 { font-size: 1.45rem; line-height: 1.32; }
+.modo-lectura-chat .prose-apple h2 { font-size: 1.28rem; line-height: 1.35; }
+.modo-lectura-chat .prose-apple h3 { font-size: 1.15rem; line-height: 1.38; }
+
+.modo-lectura-chat .burbuja-usuario {
+  font-size: 17.5px;
+  line-height: 1.7;
+}
+
+.modo-lectura-chat textarea {
+  font-size: 17px !important;
+  line-height: 1.65 !important;
+}
+
+textarea:focus, textarea:focus-visible, input[type="text"]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Fórmulas matemáticas (KaTeX) */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+.katex {
+  font-size: 1.04em;
+}
+
+/* Móvil: durante el chat la página mide exactamente el área visible */
+html.chat-activo,
+html.chat-activo body {
+  height: var(--app-h, 100dvh);
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+@media (pointer: fine) {
+  html,
+  html.chat-activo {
+    overflow-x: hidden;
+    overflow-y: scroll;
+  }
+}
+
+html.teclado-abierto .zona-entrada {
+  padding-bottom: 0.5rem !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -275,115 +342,4 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* Campo de mensaje: sin recuadro ni anillo al escribir */
-textarea:focus, textarea:focus-visible, input[type="text"]:focus {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-
-/* Fórmulas matemáticas (KaTeX): las largas se desplazan de lado en el celular */
-.katex-display {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 4px 0;
-}
-.katex {
-  font-size: 1.05em;
-}
-
-
-/* Móvil: durante el chat la página mide exactamente el área visible (sin rebotes ni huecos) */
-html.chat-activo,
-html.chat-activo body {
-  height: var(--app-h, 100dvh);
-  min-height: 0;
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-/* Escritorio: Chrome no reserva el espacio de la barra cuando la página tiene overflow: hidden,
-   así que al entrar o salir de un modo todo se corría unos píxeles. Mantener la barra visible (vacía)
-   durante el chat deja el ancho idéntico en todas las vistas. En móvil la barra es flotante y no afecta. */
-@media (pointer: fine) {
-  html,
-  html.chat-activo {
-    overflow-x: hidden;
-    overflow-y: scroll;
-  }
-}
-
-
-/* Con el teclado abierto no hace falta el margen de la barra de inicio del iPhone */
-html.teclado-abierto .zona-entrada {
-  padding-bottom: 0.5rem !important;
-}
-
-
-/* ===== Movimiento de entrada (encabezado, ingreso, títulos) ===== */
-@keyframes entradaSuave {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes entradaLogo {
-  from { opacity: 0; transform: scale(0.9) rotate(-4deg); }
-  to { opacity: 1; transform: none; }
-}
-.anim-entrada {
-  animation: entradaSuave 900ms cubic-bezier(0.25, 1, 0.5, 1) both;
-}
-.anim-logo {
-  animation: entradaLogo 750ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* Encabezado: la barra baja, el escudo entra girando y los nombres se deslizan con un desenfoque que se aclara */
-@keyframes encabezadoBaja {
-  from { opacity: 0; transform: translateY(-100%); }
-  to { opacity: 1; transform: none; }
-}
-/* Un solo movimiento continuo, sin rebote: entra girando y se detiene suavemente en su lugar */
-@keyframes escudoEntra {
-  from { opacity: 0; transform: translateX(-20px) scale(0.75) rotate(-12deg); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes tituloEntra {
-  from { opacity: 0; transform: translateX(-22px); filter: blur(6px); letter-spacing: 0.06em; }
-  to { opacity: 1; transform: none; filter: blur(0); letter-spacing: normal; }
-}
-.anim-encabezado {
-  animation: encabezadoBaja 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.anim-escudo {
-  animation: escudoEntra 1200ms cubic-bezier(0.25, 1, 0.5, 1) 250ms both;
-}
-.anim-titulo {
-  animation: tituloEntra 1200ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* Caja «Antes de empezar»: sube con el mismo estilo del encabezado (desenfoque que se aclara) */
-@keyframes tarjetaEntra {
-  from { opacity: 0; transform: translateY(32px) scale(0.96); filter: blur(8px); }
-  to { opacity: 1; transform: none; filter: blur(0); }
-}
-.anim-tarjeta {
-  animation: tarjetaEntra 1400ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* ===== Aparición al bajar: las tarjetas van entrando a medida que se ven ===== */
-@keyframes revelarCarta {
-  from { opacity: 0; transform: translateY(36px) scale(0.97); }
-  to { opacity: 1; transform: none; }
-}
-.revelar {
-  opacity: 0;
-}
-.revelar.visible {
-  opacity: 1;
-  animation: revelarCarta 1100ms cubic-bezier(0.25, 1, 0.5, 1) backwards;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .anim-entrada, .anim-logo, .anim-encabezado, .anim-escudo, .anim-titulo, .anim-tarjeta { animation: vistaFade 200ms ease both; }
-  .revelar, .revelar.visible { opacity: 1; animation: none; }
 }

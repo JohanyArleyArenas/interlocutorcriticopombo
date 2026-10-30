@@ -1,0 +1,103 @@
+import React from 'react';
+import { Home, Compass, Trophy, User } from 'lucide-react';
+import { CATALOGO_RETOS_DIARIOS } from '../gamificacion.ts';
+import { useGamificacion } from '../useGamificacion.ts';
+
+export type SeccionApp = 'inicio' | 'modos' | 'retos' | 'perfil';
+
+export const ORDEN_SECCIONES: Record<SeccionApp, number> = {
+  inicio: 0,
+  modos: 1,
+  retos: 2,
+  perfil: 3,
+};
+
+export const ITEMS_NAVEGACION: Array<{
+  id: SeccionApp;
+  etiqueta: string;
+  etiquetaCorta: string;
+  icono: React.ElementType;
+}> = [
+  { id: 'inicio', etiqueta: 'Inicio', etiquetaCorta: 'Inicio', icono: Home },
+  { id: 'modos', etiqueta: 'Modos', etiquetaCorta: 'Modos', icono: Compass },
+  { id: 'retos', etiqueta: 'Retos y cultura', etiquetaCorta: 'Retos', icono: Trophy },
+  { id: 'perfil', etiqueta: 'Perfil', etiquetaCorta: 'Perfil', icono: User },
+];
+
+interface BarraInferiorMovilProps {
+  seccionActiva: SeccionApp;
+  onCambiarSeccion: (nueva: SeccionApp) => void;
+  estudiante: string;
+}
+
+export const BarraInferiorMovil: React.FC<BarraInferiorMovilProps> = ({
+  seccionActiva,
+  onCambiarSeccion,
+  estudiante,
+}) => {
+  const { estado } = useGamificacion(estudiante);
+  const retosPendientes = CATALOGO_RETOS_DIARIOS.filter((r) => !estado.retos[r.id]?.completado).length;
+
+  return (
+    <nav
+      aria-label="Navegación principal móvil"
+      className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-[var(--color-superficie)] border-t border-[var(--color-separador)] sombra-barra-inferior pb-[env(safe-area-inset-bottom,0px)] select-none"
+    >
+      <div className="max-w-[520px] mx-auto px-2 h-[60px] grid grid-cols-4 items-stretch">
+        {ITEMS_NAVEGACION.map((item) => {
+          const Icono = item.icono;
+          const activa = seccionActiva === item.id;
+          const mostrarPuntoRetos = item.id === 'retos' && retosPendientes > 0;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onCambiarSeccion(item.id)}
+              aria-current={activa ? 'page' : undefined}
+              className="relative min-h-[44px] h-full flex flex-col items-center justify-center gap-1 cursor-pointer focus:outline-none"
+            >
+              {/* Línea superior de 3px en acento cuando está activa, sin fondo de píldora */}
+              {activa && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 inset-x-4 h-[3px] rounded-b-full bg-[var(--color-acento)]"
+                />
+              )}
+
+              <div className="relative flex items-center justify-center">
+                <Icono
+                  className={`w-[20px] h-[20px] transition-colors ${
+                    activa ? 'text-[var(--color-acento)]' : 'text-[var(--color-secundario)]'
+                  }`}
+                  strokeWidth={activa ? 2.3 : 1.8}
+                  fill={activa ? 'currentColor' : 'none'}
+                  fillOpacity={activa ? 0.22 : 0}
+                />
+
+                {mostrarPuntoRetos && (
+                  <span
+                    className="absolute -top-1 -right-2.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[var(--color-acento)] text-[var(--color-superficie)] text-[10px] font-bold flex items-center justify-center tabular-nums"
+                    aria-label={`${retosPendientes} misiones disponibles`}
+                  >
+                    {retosPendientes}
+                  </span>
+                )}
+              </div>
+
+              <span
+                className={`text-[12px] leading-none transition-colors ${
+                  activa
+                    ? 'font-bold text-[var(--color-acento)]'
+                    : 'font-normal text-[var(--color-secundario)]'
+                }`}
+              >
+                {item.etiquetaCorta}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+};
