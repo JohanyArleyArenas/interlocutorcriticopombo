@@ -1630,6 +1630,18 @@ function avanzarReto(
   return { completadoAhora: false };
 }
 
+export interface ResumenSesionModo {
+  turnosTotales: number;
+  mensajesArgumentados: number;
+  preguntasAnaliticas: number;
+  desafiosPensamientoCritico: number;
+  archivosClaseSubidos: number;
+  verificacionesExternas: number;
+  intentosIcfes: number;
+  aciertosIcfes: number;
+  conReflexion?: boolean;
+}
+
 export type AccionGamificacion =
   | {
       tipo: 'mensaje_argumentado';
@@ -1644,7 +1656,7 @@ export type AccionGamificacion =
   | { tipo: 'desafio_pensamiento_critico'; modo: string; motivo?: string }
   | { tipo: 'verificacion_externa'; modo: string }
   | { tipo: 'respuesta_icfes'; correcta: boolean; area: string }
-  | { tipo: 'cierre_sesion'; modo: string }
+  | { tipo: 'cierre_sesion'; modo: string; resumen?: ResumenSesionModo }
   | { tipo: 'desafio_relampago'; aciertos: number; total: number; categoria?: string };
 
 export function analizarTextoInteraccionChat(
@@ -1705,6 +1717,7 @@ export function registrarAccionGamificacion(estudiante: string, accion: AccionGa
   let xpGanado = 0;
   let tituloNotif = '';
   let subtituloNotif = '';
+  let silencioso = false;
 
   if ('modo' in accion && accion.modo && !estado.modosExplorados.includes(accion.modo)) {
     estado.modosExplorados.push(accion.modo);
@@ -1712,99 +1725,108 @@ export function registrarAccionGamificacion(estudiante: string, accion: AccionGa
 
   let retoRecienCompletado: (typeof CATALOGO_RETOS_DIARIOS)[number] | undefined;
 
+  // Las acciones individuales dentro del chat solo registran estadísticas en silencio;
+  // las estrellas y avisos se entregan al terminar de usar el modo ('cierre_sesion').
   if (accion.tipo === 'pregunta_analitica') {
+    silencioso = true;
     estado.estadisticas.preguntasAnaliticas = (estado.estadisticas.preguntasAnaliticas || 0) + 1;
     estado.estadisticas.mensajesArgumentados += 1;
-    estrellasGanadas += 2;
-    xpGanado += 30;
-    tituloNotif = '¡Pregunta analítica formulada!';
-    subtituloNotif = 'Cuestionar el porqué y pedir pruebas impulsa el pensamiento crítico.';
-    const r1 = avanzarReto(estado, 'reto-dialogo', 1);
-    if (r1.completadoAhora) retoRecienCompletado = r1.cfg;
   } else if (accion.tipo === 'desafio_pensamiento_critico') {
+    silencioso = true;
     estado.estadisticas.desafiosPensamientoCritico = (estado.estadisticas.desafiosPensamientoCritico || 0) + 1;
-    estrellasGanadas += 3;
-    xpGanado += 45;
-    tituloNotif = '¡Desafío de pensamiento crítico superado!';
-    subtituloNotif = accion.motivo || 'Contrastaste ideas y sostuviste una postura con rigor.';
-    const r1 = avanzarReto(estado, 'reto-dialogo', 1);
-    if (r1.completadoAhora) retoRecienCompletado = r1.cfg;
   } else if (accion.tipo === 'mensaje_argumentado') {
+    silencioso = true;
     if (accion.tieneArchivos) {
       estado.estadisticas.archivosClaseSubidos += 1;
-      estrellasGanadas += 2;
-      xpGanado += 25;
-      tituloNotif = '¡Material de trabajo cargado!';
-      subtituloNotif = 'Trabajar sobre tus propios apuntes o ejercicios suma rigor.';
     }
     if (accion.esDesafioCritico) {
       estado.estadisticas.desafiosPensamientoCritico = (estado.estadisticas.desafiosPensamientoCritico || 0) + 1;
-      estrellasGanadas += 2;
-      xpGanado += 30;
-      tituloNotif = '¡Desafío de pensamiento crítico en el chat!';
-      subtituloNotif = accion.motivoCritico || 'Formulaste un contraargumento o contraste riguroso.';
     } else if (accion.esPreguntaAnalitica) {
       estado.estadisticas.preguntasAnaliticas = (estado.estadisticas.preguntasAnaliticas || 0) + 1;
-      estrellasGanadas += 1;
-      xpGanado += 15;
-      tituloNotif = '¡Pregunta analítica aguda!';
-      subtituloNotif = 'Indagar causas, supuestos o pruebas te da estrellas extra.';
     }
     if (accion.palabras >= 8 || accion.esPreguntaAnalitica) {
       estado.estadisticas.mensajesArgumentados += 1;
-      estrellasGanadas += 1;
-      xpGanado += 15;
-      if (!tituloNotif) {
-        tituloNotif = '¡Argumento con criterio!';
-        subtituloNotif = 'Explicar con tus palabras fortalece tu pensamiento autónomo.';
-      }
-      const r1 = avanzarReto(estado, 'reto-dialogo', 1);
-      if (r1.completadoAhora) retoRecienCompletado = r1.cfg;
-
-      if (accion.modo === 'tutor') {
-        const rTutor = avanzarReto(estado, 'reto-saber-tutor', 1);
-        if (rTutor.completadoAhora && !retoRecienCompletado) retoRecienCompletado = rTutor.cfg;
-      }
     }
   } else if (accion.tipo === 'verificacion_externa') {
+    silencioso = true;
     estado.estadisticas.verificacionesExternas += 1;
-    estrellasGanadas += 3;
-    xpGanado += 45;
-    tituloNotif = '¡Fuente contrastada fuera de la IA!';
-    subtituloNotif = 'Comprobar en fuentes externas es la cima del pensamiento crítico.';
-    const r2 = avanzarReto(estado, 'reto-verificacion', 1);
-    if (r2.completadoAhora) retoRecienCompletado = r2.cfg;
   } else if (accion.tipo === 'respuesta_icfes') {
+    silencioso = true;
     estado.estadisticas.intentosIcfes += 1;
-    const r3 = avanzarReto(estado, 'reto-saber-tutor', 1);
-    if (r3.completadoAhora) retoRecienCompletado = r3.cfg;
-
     if (accion.correcta) {
       estado.estadisticas.aciertosIcfes += 1;
       estado.estadisticas.rachaIcfesActual += 1;
-      const bonoRacha = estado.estadisticas.rachaIcfesActual >= 3 ? 1 : 0;
-      estrellasGanadas += 2 + bonoRacha;
-      xpGanado += 35 + bonoRacha * 15;
-      tituloNotif =
-        bonoRacha > 0
-          ? `¡Racha de ${estado.estadisticas.rachaIcfesActual} aciertos en Saber 11!`
-          : '¡Acierto en el cuadernillo Saber 11!';
-      subtituloNotif = 'Excelente lectura crítica y descarte de distractores.';
     } else {
       estado.estadisticas.rachaIcfesActual = 0;
-      estrellasGanadas += 1;
-      xpGanado += 15;
-      tituloNotif = '¡Intento analizado en Saber 11!';
-      subtituloNotif = 'Analizar por qué descartar cada opción te hace más fuerte.';
     }
   } else if (accion.tipo === 'cierre_sesion') {
-    estado.estadisticas.cierresCompletados += 1;
-    estrellasGanadas += 5;
-    xpGanado += 70;
-    tituloNotif = '¡Reflexión metacognitiva completada!';
-    subtituloNotif = 'Evaluar lo que aprendiste consolida tu autonomía.';
-    const r4 = avanzarReto(estado, 'reto-metacognicion', 1);
-    if (r4.completadoAhora) retoRecienCompletado = r4.cfg;
+    const r = accion.resumen;
+    const conReflexion = r ? r.conReflexion !== false : true;
+
+    if (r) {
+      estado.estadisticas.mensajesArgumentados += r.mensajesArgumentados || 0;
+      estado.estadisticas.preguntasAnaliticas =
+        (estado.estadisticas.preguntasAnaliticas || 0) + (r.preguntasAnaliticas || 0);
+      estado.estadisticas.desafiosPensamientoCritico =
+        (estado.estadisticas.desafiosPensamientoCritico || 0) + (r.desafiosPensamientoCritico || 0);
+      estado.estadisticas.archivosClaseSubidos += r.archivosClaseSubidos || 0;
+      estado.estadisticas.verificacionesExternas += r.verificacionesExternas || 0;
+      estado.estadisticas.intentosIcfes += r.intentosIcfes || 0;
+      estado.estadisticas.aciertosIcfes += r.aciertosIcfes || 0;
+
+      // Estrellas acumuladas durante la sesión del modo
+      if (r.turnosTotales > 0) {
+        const puntosDialogo =
+          Math.max(1, r.mensajesArgumentados) +
+          r.preguntasAnaliticas +
+          r.desafiosPensamientoCritico * 2 +
+          r.archivosClaseSubidos * 2;
+        estrellasGanadas += Math.min(6, Math.max(1, puntosDialogo));
+        xpGanado += Math.min(90, Math.max(20, puntosDialogo * 15));
+      }
+
+      if (r.verificacionesExternas > 0) {
+        estrellasGanadas += r.verificacionesExternas * 3;
+        xpGanado += r.verificacionesExternas * 45;
+        const rVerif = avanzarReto(estado, 'reto-verificacion', r.verificacionesExternas);
+        if (rVerif.completadoAhora && !retoRecienCompletado) retoRecienCompletado = rVerif.cfg;
+      }
+
+      if (r.intentosIcfes > 0) {
+        const fallos = Math.max(0, r.intentosIcfes - r.aciertosIcfes);
+        estrellasGanadas += r.aciertosIcfes * 2 + fallos;
+        xpGanado += r.aciertosIcfes * 30 + fallos * 15;
+        const rIcfes = avanzarReto(estado, 'reto-saber-tutor', r.intentosIcfes);
+        if (rIcfes.completadoAhora && !retoRecienCompletado) retoRecienCompletado = rIcfes.cfg;
+      }
+
+      const avancesDialogo =
+        (r.mensajesArgumentados || 0) +
+        (r.preguntasAnaliticas || 0) +
+        (r.desafiosPensamientoCritico || 0);
+      if (avancesDialogo > 0) {
+        const rDial = avanzarReto(estado, 'reto-dialogo', avancesDialogo);
+        if (rDial.completadoAhora && !retoRecienCompletado) retoRecienCompletado = rDial.cfg;
+      }
+
+      if (accion.modo === 'tutor' && r.turnosTotales > 0) {
+        const rTutor = avanzarReto(estado, 'reto-saber-tutor', r.turnosTotales);
+        if (rTutor.completadoAhora && !retoRecienCompletado) retoRecienCompletado = rTutor.cfg;
+      }
+    }
+
+    if (conReflexion) {
+      estado.estadisticas.cierresCompletados += 1;
+      estrellasGanadas += 4;
+      xpGanado += 60;
+      tituloNotif = '¡Modo finalizado con reflexión!';
+      subtituloNotif = 'Se sumaron las estrellas de tu sesión y de tu cierre.';
+      const r4 = avanzarReto(estado, 'reto-metacognicion', 1);
+      if (r4.completadoAhora && !retoRecienCompletado) retoRecienCompletado = r4.cfg;
+    } else if (estrellasGanadas > 0) {
+      tituloNotif = '¡Sesión de modo completada!';
+      subtituloNotif = 'Recibiste las estrellas ganadas durante tu práctica.';
+    }
   } else if (accion.tipo === 'desafio_relampago') {
     estado.estadisticas.desafiosRelampagoGanados += 1;
     estado.estadisticas.aciertosCulturalesTotales =
@@ -1816,8 +1838,8 @@ export function registrarAccionGamificacion(estudiante: string, accion: AccionGa
     }
     estrellasGanadas += Math.max(2, accion.aciertos * 2);
     xpGanado += Math.max(30, accion.aciertos * 20);
-    tituloNotif = `¡Desafío de Cultura General superado (${accion.aciertos}/${accion.total})!`;
-    subtituloNotif = 'Excelente bagaje cultural en historia, ciencia, literatura y Colombia.';
+    tituloNotif = `¡Desafío de Cultura General (${accion.aciertos}/${accion.total})!`;
+    subtituloNotif = 'Completaste la ronda de cultura general.';
     const r4 = avanzarReto(estado, 'reto-metacognicion', 1);
     if (r4.completadoAhora) retoRecienCompletado = r4.cfg;
   }
@@ -1829,7 +1851,7 @@ export function registrarAccionGamificacion(estudiante: string, accion: AccionGa
     estado.xp += xpGanado;
   }
 
-  const nuevasInsignias = evaluarInsignias(estado);
+  const nuevasInsignias = silencioso ? [] : evaluarInsignias(estado);
   if (nuevasInsignias.length > 0) {
     // Bono por desbloquear insignia
     estado.estrellas += 2 * nuevasInsignias.length;
@@ -1839,6 +1861,10 @@ export function registrarAccionGamificacion(estudiante: string, accion: AccionGa
 
   const nivelDespues = calcularNivel(estado.xp).nivelActual;
   guardarProgreso(estudiante, estado);
+
+  if (silencioso) {
+    return estado;
+  }
 
   if (nivelDespues.nivel > nivelAntes) {
     reproducirSonidoRecompensa('nivel', estado.sonidoActivo);

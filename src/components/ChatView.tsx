@@ -428,6 +428,9 @@ if (clave === 'tutor') return base;
       setBarraVisible(true);
       return;
     }
+    if (turnosEstudiante > 0 && cierreEstado !== 'listo') {
+      registrarCierreSesion(modeKey, false);
+    }
     onBackToModos();
   };
 
@@ -1258,7 +1261,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               </span>
             </button>
 
-            {MODOS_CON_CIERRE.includes(modeKey) && (
+            {MODOS_CON_CIERRE.includes(modeKey) ? (
               <>
                 <button
                   type="button"
@@ -1290,6 +1293,22 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   <span>Terminar</span>
                 </button>
               </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (turnosEstudiante > 0) {
+                    registrarCierreSesion(modeKey, false);
+                  }
+                  onBackToModos();
+                }}
+                disabled={turnosEstudiante === 0 || isLoading}
+                className="inline-flex items-center gap-1 text-[13.5px] sm:text-[14.5px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                aria-label="Terminar práctica y volver a los modos"
+              >
+                <Flag className="w-4 h-4" />
+                <span>Terminar</span>
+              </button>
             )}
           </div>
         </div>
@@ -1603,7 +1622,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     </p>
                   )}
 
-                  <div className="flex gap-2.5 w-full">
+                  <div className="flex flex-col sm:flex-row gap-2.5 w-full">
                     <button
                       type="button"
                       onClick={() => setCierreAbierto(false)}
@@ -1612,6 +1631,22 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     >
                       Seguir conversando
                     </button>
+                    {avisoSalidaSinCierre && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (turnosEstudiante > 0) {
+                            registrarCierreSesion(modeKey, false);
+                          }
+                          setCierreAbierto(false);
+                          onBackToModos();
+                        }}
+                        disabled={cierreEstado === 'enviando'}
+                        className="flex-1 min-h-[48px] h-[48px] px-4 py-3 whitespace-nowrap rounded-full border border-[var(--color-separador)] bg-[var(--color-fondo)] text-[15px] font-medium text-[var(--color-secundario)] hover:text-[var(--color-texto)] inline-flex items-center justify-center transition-colors"
+                      >
+                        Salir sin reflexión
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={enviarCierre}

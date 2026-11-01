@@ -8,6 +8,7 @@ import {
   EstadoGamificacion,
   leerProgreso,
   registrarAccionGamificacion,
+  ResumenSesionModo,
   usarComodinPista,
 } from './gamificacion.ts';
 
@@ -31,12 +32,22 @@ export interface UseGamificacionOpciones {
   }>;
 }
 
+const crearResumenVacio = (): ResumenSesionModo => ({
+  turnosTotales: 0,
+  mensajesArgumentados: 0,
+  preguntasAnaliticas: 0,
+  desafiosPensamientoCritico: 0,
+  archivosClaseSubidos: 0,
+  verificacionesExternas: 0,
+  intentosIcfes: 0,
+  aciertosIcfes: 0,
+  conReflexion: false,
+});
+
 /**
  * Hook `useGamificacion`
- * Escucha las interacciones del chat (tanto por observación reactiva del hilo de mensajes
- * como mediante eventos y llamadas directas) y otorga estrellas automáticamente cuando
- * el estudiante formula preguntas analíticas, argumenta con criterio, verifica fuentes
- * externas o completa desafíos de pensamiento crítico.
+ * Registra en silencio la participación del estudiante durante el uso de cada modo
+ * y entrega las estrellas acumuladas únicamente al terminar de usar el modo.
  */
 export function useGamificacion(opciones?: string | UseGamificacionOpciones) {
   const estudiante =
@@ -50,6 +61,9 @@ export function useGamificacion(opciones?: string | UseGamificacionOpciones) {
 
   const [estado, setEstado] = useState<EstadoGamificacion>(() => leerProgreso(estudiante));
   const mensajesProcesadosRef = useRef<Set<string>>(new Set());
+  const inicializadoMensajesRef = useRef<boolean>(false);
+  const resumenSesionRef = useRef<ResumenSesionModo>(crearResumenVacio());
+  const sesionPremiadaRef = useRef<boolean>(false);
 
   // Sincronizar con cambios en localStorage y eventos globales de gamificación
   useEffect(() => {
@@ -63,11 +77,6 @@ export function useGamificacion(opciones?: string | UseGamificacionOpciones) {
     };
   }, [estudiante]);
 
-  // Reiniciar registro de IDs vistos cuando cambia el modo o el estudiante
-  useEffect(() => {
-    mensajesProcesadosRef.current.clear();
-  }, [estudiante, modoActivo]);
-
   const ejecutarAccion = useCallback(
     (accion: AccionGamificacion) => {
       const nuevo = registrarAccionGamificacion(estudiante, accion);
@@ -77,54 +86,81 @@ export function useGamificacion(opciones?: string | UseGamificacionOpciones) {
     [estudiante]
   );
 
-  // Analiza un mensaje enviado en el chat y otorga estrellas automáticamente si cumple criterios
+  // Al cambiar de modo o desmontar la vista del modo, si hubo actividad y aún no se ha premiado el cierre,
+  // entrega las estrellas acumuladas al finalizar de usar el modo.
+  useEffect(() => {
+    mensajesProcesadosRef.current.clear();
+    inicializadoMensajesRef.current = false;
+    resumenSesionRef.current = crearResumenVacio();
+    sesionPremiadaRef.current = false;
+
+    const modoDeEstaSesion = modoActivo;
+    const estudianteDeEstaSesion = estudiante;
+
+    return () => {
+      if (!modoDeEstaSesion || sesionPremiadaRef.current) return;
+      const r = resumenSesionRef.current;
+      const huboActividad =
+        r.turnosTotales > 0 || r.intentosIcfes > 0 || r.verificacionesExternas > 0;
+      if (huboActividad) {
+        sesionPremiadaRef.current = true;
+        registrarAccionGamificacion(estudianteDeEstaSesion, {
+          tipo: 'cierre_sesion',
+          modo: modoDeEstaSesion,
+          resumen: { ...r, conReflexion: false },
+        });
+      }
+    };
+  }, [estudiante, modoActivo]);
+
+  // Analiza un mensaje enviado en el chat y acumula su progreso para otorgar estrellas al terminar el modo
   const evaluarInteraccionChat = useCallback(
     ({ texto, modo, tieneArchivos = false, turnosEnSesion = 1 }: InteraccionChatPayload) => {
       const limpio = (texto || '').trim();
-      // Si viene de «Lo verifiqué por fuera», su acción específica ya se procesa como verificación externa
+      if (!limpio && !tieneArchivos) return leerProgreso(estudiante);
+
+      // Si viene de «Lo verifiqué por fuera», se contabiliza en registrarVerificacionExterna
       if (limpio.startsWith('[Verificación externa]')) {
         return leerProgreso(estudiante);
       }
 
       const analisis = analizarTextoInteraccionChat(limpio, modo, tieneArchivos, turnosEnSesion);
-      if (
-        analisis.palabras >= 8 ||
-        analisis.esPreguntaAnalitica ||
-        analisis.esDesafioCritico ||
-        tieneArchivos
-      ) {
-        return ejecutarAccion({
-          tipo: 'mensaje_argumentado',
-          modo,
-          palabras: analisis.palabras,
-          tieneArchivos,
-          esPreguntaAnalitica: analisis.esPreguntaAnalitica,
-          esDesafioCritico: analisis.esDesafioCritico,
-          motivoCritico: analisis.motivoCritico,
-        });
+      const r = resumenSesionRef.current;
+      r.turnosTotales += 1;
+      if (tieneArchivos) {
+        r.archivosClaseSubidos += 1;
+      }
+      if (analisis.esDesafioCritico) {
+        r.desafiosPensamientoCritico += 1;
+      } else if (analisis.esPreguntaAnalitica) {
+        r.preguntasAnaliticas += 1;
+      }
+      if (analisis.palabras >= 8 || analisis.esPreguntaAnalitica) {
+        r.mensajesArgumentados += 1;
       }
       return leerProgreso(estudiante);
     },
-    [estudiante, ejecutarAccion]
+    [estudiante]
   );
 
-  // Escucha automática de mensajes nuevos del estudiante en el hilo de conversación
+  // Observa los mensajes nuevos del estudiante en el hilo de conversación (sin lanzar avisos en cada turno)
   useEffect(() => {
-    if (!mensajes || mensajes.length === 0) return;
+    if (!mensajes) return;
 
     const mensajesUsuario = mensajes.filter((m) => m.role === 'user');
-    if (mensajesUsuario.length === 0) return;
 
-    // En la primera carga, marcamos los mensajes iniciales transferidos como ya vistos
-    if (mensajesProcesadosRef.current.size === 0 && mensajesUsuario.length > 1) {
-      mensajesUsuario.slice(0, -1).forEach((m) => mensajesProcesadosRef.current.add(m.id));
+    // En el primer render del modo, marcamos los mensajes previos (p. ej. conversación reanudada o transferida)
+    if (!inicializadoMensajesRef.current) {
+      inicializadoMensajesRef.current = true;
+      mensajesUsuario.forEach((m) => mensajesProcesadosRef.current.add(m.id));
+      return;
     }
 
     mensajesUsuario.forEach((msg, idx) => {
       if (mensajesProcesadosRef.current.has(msg.id)) return;
       mensajesProcesadosRef.current.add(msg.id);
 
-      // Si es una respuesta de opción múltiple en ICFES, se evalúa cuando llega la clave del servidor
+      // Si es una respuesta de opción múltiple en ICFES, se registra cuando llega la clave del servidor
       if (msg.icfes?.accion === 'responder' || msg.icfes?.accion === 'pista') return;
 
       const tieneArchivos =
@@ -152,58 +188,60 @@ export function useGamificacion(opciones?: string | UseGamificacionOpciones) {
   }, [ejecutarAccion]);
 
   const registrarPreguntaAnalitica = useCallback(
-    (modo: string, preguntaTexto: string) => {
-      const palabras = (preguntaTexto || '').trim().split(/\s+/).filter(Boolean).length;
-      return ejecutarAccion({
-        tipo: 'pregunta_analitica',
-        modo,
-        palabras,
-        pregunta: preguntaTexto,
-      });
+    (_modo: string, _preguntaTexto: string) => {
+      resumenSesionRef.current.preguntasAnaliticas += 1;
+      resumenSesionRef.current.mensajesArgumentados += 1;
+      return leerProgreso(estudiante);
     },
-    [ejecutarAccion]
+    [estudiante]
   );
 
   const registrarDesafioPensamientoCritico = useCallback(
-    (modo: string, motivo?: string) => {
-      return ejecutarAccion({
-        tipo: 'desafio_pensamiento_critico',
-        modo,
-        motivo,
-      });
+    (_modo: string, _motivo?: string) => {
+      resumenSesionRef.current.desafiosPensamientoCritico += 1;
+      return leerProgreso(estudiante);
     },
-    [ejecutarAccion]
+    [estudiante]
   );
 
   const registrarVerificacionExterna = useCallback(
-    (modo: string) => {
-      return ejecutarAccion({
-        tipo: 'verificacion_externa',
-        modo,
-      });
+    (_modo: string) => {
+      resumenSesionRef.current.verificacionesExternas += 1;
+      return leerProgreso(estudiante);
     },
-    [ejecutarAccion]
+    [estudiante]
   );
 
   const registrarRespuestaIcfes = useCallback(
-    (correcta: boolean, area: string) => {
-      return ejecutarAccion({
-        tipo: 'respuesta_icfes',
-        correcta,
-        area,
-      });
+    (correcta: boolean, _area: string) => {
+      resumenSesionRef.current.intentosIcfes += 1;
+      if (correcta) {
+        resumenSesionRef.current.aciertosIcfes += 1;
+      }
+      return leerProgreso(estudiante);
     },
-    [ejecutarAccion]
+    [estudiante]
   );
 
   const registrarCierreSesion = useCallback(
-    (modo: string) => {
-      return ejecutarAccion({
+    (modo: string, conReflexion = true) => {
+      if (sesionPremiadaRef.current) {
+        return leerProgreso(estudiante);
+      }
+      sesionPremiadaRef.current = true;
+      const r = resumenSesionRef.current;
+      const nuevo = ejecutarAccion({
         tipo: 'cierre_sesion',
         modo,
+        resumen: {
+          ...r,
+          conReflexion,
+        },
       });
+      resumenSesionRef.current = crearResumenVacio();
+      return nuevo;
     },
-    [ejecutarAccion]
+    [estudiante, ejecutarAccion]
   );
 
   const registrarDesafioRelampago = useCallback(
