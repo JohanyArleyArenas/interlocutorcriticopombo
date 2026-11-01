@@ -481,8 +481,8 @@ export default function App() {
                 )}
 
                 {seccionActiva === 'retos' && (
-                  <div className="w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-8 flex flex-col">
-                    <div className="mb-6 select-none">
+                  <div className="w-full max-w-[820px] mx-auto px-4 sm:px-6 pt-5 pb-[76px] sm:py-7 flex flex-col">
+                    <div className="mb-5 select-none">
                       <h1 className="font-literata text-[30px] font-semibold tracking-[-0.015em] text-[var(--color-texto)] leading-tight">
                         Retos y logros
                       </h1>

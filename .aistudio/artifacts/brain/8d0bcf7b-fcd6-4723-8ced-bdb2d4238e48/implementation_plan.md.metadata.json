@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de implementación para reparar la conexión con la llave de la API de Gemini en el servidor y limpiar las sugerencias rápidas de las tarjetas en la cuadrícula de modos, conservándolas únicamente dentro de cada modo.",
+  "updatedAt":  "2026-11-01T17:37:17.475214358Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

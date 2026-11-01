@@ -16,6 +16,10 @@
   --color-rojo: #9E2B25;
   --color-oro: #A97C1F;
 
+  /* Tokens de navegación con contraste reforzado (WCAG AA/AAA) */
+  --color-nav-activo: #144530;
+  --color-nav-inactivo: #4E5A54;
+
   --sombra-boton: 0 2px 8px rgba(31, 90, 64, 0.16);
   --sombra-barra: 0 -2px 12px rgba(26, 36, 32, 0.05);
 
@@ -35,8 +39,26 @@
     --color-rojo: #E0776C;
     --color-oro: #D9B25A;
 
+    /* Tokens de navegación en modo oscuro con alto contraste */
+    --color-nav-activo: #84D4AA;
+    --color-nav-inactivo: #A5B4AC;
+
     --sombra-boton: 0 2px 10px rgba(0, 0, 0, 0.35);
     --sombra-barra: 0 -2px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-nav-activo: #0D3322;
+    --color-nav-inactivo: #36403B;
+  }
+}
+
+@media (prefers-color-scheme: dark) and (prefers-contrast: more) {
+  :root {
+    --color-nav-activo: #A3ECC4;
+    --color-nav-inactivo: #C2D0C8;
   }
 }
 
@@ -299,34 +321,80 @@ input:focus-visible,
   text-underline-offset: 3px;
 }
 
-/* Modo Lectura en el chat: mayor tamaño tipográfico e interlineado amplio */
+/* Modo Lectura en el chat: mayor tamaño tipográfico e interlineado amplio para reducir la fatiga visual */
+.prose-apple,
+.burbuja-usuario,
+.texto-lectura-icfes,
+.nota-lectura-icfes,
+.modo-lectura-descripcion,
+.modo-lectura-paso {
+  transition: font-size 180ms ease, line-height 180ms ease, letter-spacing 180ms ease;
+}
+
 .modo-lectura-chat .prose-apple {
-  font-size: 18px;
-  line-height: 1.8;
+  font-size: 18.5px;
+  line-height: 1.85;
+  letter-spacing: 0.01em;
+  word-spacing: 0.02em;
 }
 
 .modo-lectura-chat .prose-apple p {
-  margin-top: 0.85em;
-  margin-bottom: 0.85em;
+  margin-top: 0.95em;
+  margin-bottom: 0.95em;
+  line-height: 1.85;
 }
 
 .modo-lectura-chat .prose-apple li {
-  margin-top: 0.45em;
-  margin-bottom: 0.45em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.85;
 }
 
-.modo-lectura-chat .prose-apple h1 { font-size: 1.45rem; line-height: 1.32; }
-.modo-lectura-chat .prose-apple h2 { font-size: 1.28rem; line-height: 1.35; }
-.modo-lectura-chat .prose-apple h3 { font-size: 1.15rem; line-height: 1.38; }
+.modo-lectura-chat .prose-apple blockquote {
+  line-height: 1.85;
+  padding-left: 1.1em;
+  margin: 1em 0;
+}
+
+.modo-lectura-chat .prose-apple table {
+  font-size: 0.96em;
+  line-height: 1.7;
+}
+
+.modo-lectura-chat .prose-apple h1 { font-size: 1.5rem; line-height: 1.38; }
+.modo-lectura-chat .prose-apple h2 { font-size: 1.34rem; line-height: 1.4; }
+.modo-lectura-chat .prose-apple h3 { font-size: 1.2rem; line-height: 1.42; }
 
 .modo-lectura-chat .burbuja-usuario {
-  font-size: 17.5px;
+  font-size: 18px;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+}
+
+.modo-lectura-chat .modo-lectura-descripcion {
+  font-size: 17px;
+  line-height: 1.78;
+}
+
+.modo-lectura-chat .modo-lectura-paso {
+  font-size: 16px;
+  line-height: 1.72;
+}
+
+.modo-lectura-chat .texto-lectura-icfes {
+  font-size: 18.5px;
+  line-height: 1.85;
+  letter-spacing: 0.01em;
+}
+
+.modo-lectura-chat .nota-lectura-icfes {
+  font-size: 15px;
   line-height: 1.7;
 }
 
 .modo-lectura-chat textarea {
-  font-size: 17px !important;
-  line-height: 1.65 !important;
+  font-size: 17.5px !important;
+  line-height: 1.7 !important;
 }
 
 textarea:focus, textarea:focus-visible, input[type="text"]:focus {
@@ -342,6 +410,9 @@ textarea:focus, textarea:focus-visible, input[type="text"]:focus {
 }
 .katex {
   font-size: 1.04em;
+}
+.modo-lectura-chat .katex {
+  font-size: 1.12em;
 }
 
 /* Móvil: durante el chat la página mide exactamente el área visible */

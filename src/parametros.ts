@@ -108,7 +108,7 @@ LÍMITES
   modos: {
     socratico: {
       titulo: 'Diálogo socrático',
-      descripcion: 'Aprende paso a paso, guiado por preguntas.',
+      descripcion: 'Comprende cualquier tema paso a paso mediante preguntas.',
       saludo: '¿Qué quieres aprender hoy? Puede ser de cualquier materia (por ejemplo: «las ecuaciones de segundo grado», «la fotosíntesis», «el present perfect» o «qué es la justicia»). Cuéntame también qué sabes ya del tema.',
       guia: [
         'Entiendes paso a paso cualquier tema de clase.',
@@ -167,7 +167,7 @@ Si el estudiante pide algo que corresponde mejor a otro modo, díselo en una o d
 
     explorar: {
       titulo: 'Guía de investigación',
-      descripcion: 'Aprende a buscar fuentes académicas y a estudiarlas en NotebookLM.',
+      descripcion: 'Delimita tu tema y busca fuentes académicas confiables.',
       saludo: 'Escribe la pregunta o el tema que quieres investigar. Te guiaré paso a paso: afinar la pregunta, buscar fuentes confiables y estudiarlas en NotebookLM.',
       guia: [
         'Aprendes a investigar un tema con fuentes académicas gratuitas.',
@@ -225,7 +225,7 @@ Si el estudiante pide algo que corresponde mejor a otro modo, díselo en una o d
 
     argumento: {
       titulo: 'Taller de argumentos',
-      descripcion: 'Pule tu tesis: falacias, sesgos y objeciones antes de redactar',
+      descripcion: 'Pon a prueba tu tesis, detecta falacias y objeciones.',
       saludo: 'Escribe lo que defiendes (tu tesis) y las razones que tienes para sostenerlo. Si por ahora solo tienes una pregunta o un tema, también sirve: empezamos por tomar posición. Lo puliremos por etapas hasta que esté listo para redactar.',
       guia: [
         'Fortaleces tu tesis y tus razones antes de redactar.',
@@ -288,7 +288,7 @@ Si el estudiante pide algo que corresponde mejor a otro modo, díselo en una o d
 
     verificar: {
       titulo: 'Verificar una afirmación',
-      descripcion: 'Chequeo con fuentes actualizadas en Google.',
+      descripcion: 'Contrasta datos y noticias con fuentes reales en Google.',
       saludo: 'Pega la afirmación o noticia que quieres verificar y, si puedes, dónde la viste.',
       guia: [
         'Compruebas si una afirmación o noticia es verdadera, engañosa o falsa.',
@@ -346,7 +346,7 @@ Si el estudiante pide algo que corresponde mejor a otro modo, díselo en una o d
 
     auditar: {
       titulo: 'Auditar una respuesta de IA',
-      descripcion: 'Aprende a detectar los errores de otra IA.',
+      descripcion: 'Detecta errores, vacíos y sesgos en respuestas de IA.',
       saludo: 'Pega la pregunta que le hiciste a la otra IA y la respuesta que te dio. Aquí auditas tú: primero buscarás lo que te parece sospechoso y luego lo comprobaremos con fuentes.',
       guia: [
         'Aprendes a encontrar errores y sesgos en la respuesta de otra IA.',
@@ -411,7 +411,7 @@ Si el estudiante pide algo que corresponde mejor a otro modo, díselo en una o d
 
     tutor: {
       titulo: 'Tutor de matemáticas, física y química',
-      descripcion: 'Sube tu ejercicio: aprendes el procedimiento paso a paso, sin que te den la respuesta.',
+      descripcion: 'Resuelve ejercicios paso a paso comprendiendo el método.',
       saludo: 'Escribe o sube una foto del ejercicio de **matemáticas, física o química** que estás trabajando. Si ya intentaste resolverlo, muéstrame también tu procedimiento (aunque esté incompleto o creas que está mal): así sé desde dónde empezar. No te voy a dar la respuesta; te voy a ayudar a que llegues tú.',
       guia: [
         'Resuelves ejercicios de matemáticas, física o química paso a paso.',
@@ -497,7 +497,7 @@ Si el estudiante pide algo que corresponde mejor a otro modo, díselo en una o d
 
     icfes: {
       titulo: 'Entrenador Saber 11',
-      descripcion: 'Practica con preguntas reales del ICFES y aprende de cada error.',
+      descripcion: 'Practica con preguntas oficiales de la prueba Saber 11.',
       saludo: 'Vamos a entrenar con **preguntas reales** que el ICFES aplicó en exámenes anteriores. Elige un área: te muestro la pregunta con su texto y sus opciones, una por una, y marcas tu respuesta. Después te explico qué evalúa, por qué tu opción es o no correcta y un truco para este tipo de pregunta.',
       guia: [
         'Entrenas con preguntas reales de los cuadernillos oficiales del ICFES.',
@@ -559,7 +559,7 @@ Si en la conversación el estudiante pide algo ajeno al entrenamiento Saber 11 q
 
     escrito: {
       titulo: 'Revisar mi escrito',
-      descripcion: 'Revisión por rondas hasta que tu texto quede bien escrito.',
+      descripcion: 'Mejora tu borrador por rondas de estructura y estilo.',
       saludo: 'Sube tu escrito (PDF, Word, TXT o foto) o pégalo aquí. Dime qué tipo de texto es (ensayo, reseña, informe…) y, si quieres, en qué debo fijarme. Lo revisaremos por rondas: tú corriges y me envías cada nueva versión.',
       guia: [
         'Mejoras un borrador que ya escribiste.',

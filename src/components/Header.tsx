@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Flame, Star, Sparkles, ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import type { NotificacionRecompensa } from '../gamificacion.ts';
 import { useGamificacion } from '../useGamificacion.ts';
 import { BarraInferiorMovil, type SeccionApp } from './BarraNavegacionApp.tsx';
+import { IconoEstrellaPombo, IconoLlamaRacha } from './IconosInsignia.tsx';
 
 interface HeaderProps {
   onBackToModos?: () => void;
@@ -13,49 +14,9 @@ interface HeaderProps {
   enChat?: boolean;
 }
 
-interface ParticulaEstrella {
-  id: number;
-  dx: number;
-  dy: number;
-  escala: number;
-  rotacion: number;
-  color: string;
-  forma: 'estrella' | 'destello' | 'punto';
-  retraso: number;
-}
-
-interface ExplosionActiva {
+interface PulsoEstrella {
   id: number;
   cantidadGanada: number;
-  particulas: ParticulaEstrella[];
-}
-
-const COLORES_PARTICULAS = [
-  'var(--color-oro)',
-  'var(--color-acento)',
-  '#D9B25A',
-  '#A97C1F',
-];
-
-function crearParticulasExplosion(semilla: number, total = 12): ParticulaEstrella[] {
-  return Array.from({ length: total }, (_, i) => {
-    const anguloBase = (Math.PI * 2 * i) / total;
-    const variacionAngulo = ((semilla + i * 17) % 10) * 0.04 - 0.2;
-    const angulo = anguloBase + variacionAngulo;
-    const distancia = 24 + ((i * 13 + semilla) % 24);
-    const formas: ParticulaEstrella['forma'][] = ['estrella', 'destello', 'punto'];
-
-    return {
-      id: i,
-      dx: Math.cos(angulo) * distancia,
-      dy: Math.sin(angulo) * distancia - 6,
-      escala: 0.65 + ((i * 7) % 5) * 0.12,
-      rotacion: (i % 2 === 0 ? 1 : -1) * (90 + i * 22),
-      color: COLORES_PARTICULAS[i % COLORES_PARTICULAS.length],
-      forma: formas[i % formas.length],
-      retraso: (i % 4) * 0.02,
-    };
-  });
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -69,34 +30,33 @@ export const Header: React.FC<HeaderProps> = ({
   const progreso = estudiante ? estado : null;
   const nivel = estudiante ? infoNivel.nivelActual : null;
 
-  const [explosiones, setExplosiones] = useState<ExplosionActiva[]>([]);
+  const [pulsos, setPulsos] = useState<PulsoEstrella[]>([]);
   const [animandoContador, setAnimandoContador] = useState(false);
 
   const prevEstrellasRef = useRef<number | null>(null);
   const prevEstudianteRef = useRef<string | undefined>(estudiante);
   const ultimoDisparoTsRef = useRef<number>(0);
 
-  const dispararExplosionEstrellas = (cantidadGanada = 1) => {
+  const activarPulsoDinamico = (cantidadGanada = 1) => {
     const ahora = Date.now();
-    if (ahora - ultimoDisparoTsRef.current < 180) return;
+    if (ahora - ultimoDisparoTsRef.current < 220) return;
     ultimoDisparoTsRef.current = ahora;
 
-    const nuevaExplosion: ExplosionActiva = {
+    const nuevoPulso: PulsoEstrella = {
       id: ahora + Math.random(),
       cantidadGanada: Math.max(1, cantidadGanada),
-      particulas: crearParticulasExplosion(ahora, 12),
     };
 
-    setExplosiones((prev) => [...prev.slice(-2), nuevaExplosion]);
+    setPulsos((prev) => [...prev.slice(-1), nuevoPulso]);
     setAnimandoContador(true);
 
     window.setTimeout(() => {
       setAnimandoContador(false);
-    }, 700);
+    }, 650);
 
     window.setTimeout(() => {
-      setExplosiones((prev) => prev.filter((item) => item.id !== nuevaExplosion.id));
-    }, 1050);
+      setPulsos((prev) => prev.filter((item) => item.id !== nuevoPulso.id));
+    }, 1100);
   };
 
   useEffect(() => {
@@ -114,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
 
     if (prevEstrellasRef.current !== null && progreso.estrellas > prevEstrellasRef.current) {
       const diferencia = progreso.estrellas - prevEstrellasRef.current;
-      dispararExplosionEstrellas(diferencia);
+      activarPulsoDinamico(diferencia);
     }
 
     prevEstrellasRef.current = progreso.estrellas;
@@ -125,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
       const custom = ev as CustomEvent<NotificacionRecompensa>;
       const ganadas = custom.detail?.estrellas ?? 0;
       if (ganadas > 0) {
-        dispararExplosionEstrellas(ganadas);
+        activarPulsoDinamico(ganadas);
       }
     };
 
@@ -177,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
               Liceo Superior Rafael Pombo
             </span>
             <span className="text-[13px] text-[var(--color-secundario)] leading-tight truncate">
-              Interlocutor Crítico{progreso?.tituloEquipado ? `, ${progreso.tituloEquipado}` : ''}
+              Interlocutor Crítico{progreso?.tituloEquipado ? ` · ${progreso.tituloEquipado}` : ''}
             </span>
           </div>
         </div>
@@ -192,97 +152,87 @@ export const Header: React.FC<HeaderProps> = ({
           />
         )}
 
-        {/* Indicadores de racha y estrellas */}
+        {/* Indicadores de racha y estrellas con insignias ilustradas y respuesta dinámica al uso */}
         {progreso && nivel && !(enChat && progreso.modoLecturaActivo) && (
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0 select-none text-[14px] text-[var(--color-texto)] tabular-nums">
-            <span
-              className="inline-flex items-center gap-1 min-h-[44px] px-1.5 text-[var(--color-rojo)] font-bold"
-              title={`Racha activa de ${progreso.rachaDias} ${progreso.rachaDias === 1 ? 'día' : 'días'}`}
-            >
-              <Flame className="w-4 h-4 fill-current" />
-              <span>{progreso.rachaDias}</span>
-            </span>
-
-            <div className="relative inline-flex items-center justify-center">
-              <motion.button
-                type="button"
-                onClick={() => {
-                  dispararExplosionEstrellas(1);
-                  if (onCambiarSeccion && !enChat) {
-                    onCambiarSeccion('perfil');
-                  }
-                }}
-                animate={
-                  animandoContador
-                    ? { scale: [1, 1.2, 0.96, 1.08, 1] }
-                    : { scale: 1 }
+          <div className="relative flex items-center shrink-0 select-none">
+            <motion.button
+              type="button"
+              onClick={() => {
+                if (onCambiarSeccion && !enChat) {
+                  onCambiarSeccion('retos');
                 }
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="relative min-h-[44px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--color-separador)] bg-[var(--color-fondo)] text-[var(--color-texto)] hover:border-[var(--color-oro)] transition-colors cursor-pointer"
-                title={`${progreso.estrellas} estrellas acumuladas`}
-                aria-label={`${progreso.estrellas} estrellas acumuladas`}
-              >
-                <Star className="w-4 h-4 text-[var(--color-oro)] fill-[var(--color-oro)]" />
-                <span className="font-bold">{progreso.estrellas}</span>
-              </motion.button>
+              }}
+              animate={
+                animandoContador
+                  ? { scale: [1, 1.07, 0.98, 1.02, 1] }
+                  : { scale: 1 }
+              }
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+              className={`min-h-[38px] inline-flex items-center gap-2.5 px-3 py-1 rounded-full border transition-colors cursor-pointer ${
+                animandoContador
+                  ? 'border-[var(--color-oro)] bg-[var(--color-oro)]/10'
+                  : 'border-[var(--color-separador)] bg-[var(--color-fondo)]/85 hover:border-[var(--color-acento)]/45'
+              }`}
+              title={`Racha de ${progreso.rachaDias} ${progreso.rachaDias === 1 ? 'día' : 'días'} · ${progreso.estrellas} ${progreso.estrellas === 1 ? 'estrella ganada' : 'estrellas ganadas'}`}
+              aria-label={`Racha activa de ${progreso.rachaDias} días y ${progreso.estrellas} estrellas acumuladas`}
+            >
+              {/* Indicador de racha diaria */}
+              <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[var(--color-texto)] tabular-nums">
+                <IconoLlamaRacha
+                  className="w-[17px] h-[17px] shrink-0"
+                  activo={progreso.rachaDias > 0}
+                />
+                <span>{progreso.rachaDias}</span>
+              </span>
 
-              <AnimatePresence>
-                {explosiones.map((exp) => (
-                  <React.Fragment key={exp.id}>
-                    <motion.span
-                      initial={{ scale: 0.7, opacity: 0.8 }}
-                      animate={{ scale: 2.1, opacity: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.6, ease: 'easeOut' }}
-                      className="pointer-events-none absolute inset-0 rounded-full border-2 border-[var(--color-oro)]"
-                    />
+              <span className="w-px h-3.5 bg-[var(--color-separador)]" aria-hidden="true" />
 
-                    <motion.span
-                      initial={{ opacity: 0, y: 4, scale: 0.8 }}
-                      animate={{ opacity: [0, 1, 1, 0], y: -26, scale: [0.85, 1.1, 1] }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.9, ease: 'easeOut' }}
-                      className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-0.5 rounded-full bg-[var(--color-oro)] text-[#FBFCFA] text-[11px] font-bold z-40"
-                    >
-                      +{exp.cantidadGanada}
-                    </motion.span>
+              {/* Indicador dinámico de estrellas */}
+              <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[var(--color-texto)] tabular-nums">
+                <motion.span
+                  animate={
+                    animandoContador
+                      ? { rotate: [0, -14, 14, -6, 0], scale: [1, 1.25, 1] }
+                      : { rotate: 0, scale: 1 }
+                  }
+                  transition={{ duration: 0.55, ease: 'easeOut' }}
+                  className="inline-flex items-center justify-center"
+                >
+                  <IconoEstrellaPombo
+                    className="w-[17px] h-[17px] shrink-0"
+                    activo={true}
+                  />
+                </motion.span>
+                <AnimatePresence mode="popLayout">
+                  <motion.span
+                    key={progreso.estrellas}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.22 }}
+                  >
+                    {progreso.estrellas}
+                  </motion.span>
+                </AnimatePresence>
+              </span>
+            </motion.button>
 
-                    {exp.particulas.map((p) => (
-                      <motion.span
-                        key={p.id}
-                        initial={{ x: 0, y: 0, scale: 0, opacity: 1, rotate: 0 }}
-                        animate={{
-                          x: p.dx,
-                          y: p.dy,
-                          scale: [0, p.escala, p.escala * 0.85, 0],
-                          opacity: [1, 1, 0.85, 0],
-                          rotate: p.rotacion,
-                        }}
-                        exit={{ opacity: 0 }}
-                        transition={{
-                          duration: 0.78,
-                          delay: p.retraso,
-                          ease: [0.16, 1, 0.3, 1],
-                        }}
-                        style={{ color: p.color }}
-                        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30"
-                      >
-                        {p.forma === 'estrella' ? (
-                          <Star className="w-3 h-3 fill-current" />
-                        ) : p.forma === 'destello' ? (
-                          <Sparkles className="w-3 h-3 fill-current" />
-                        ) : (
-                          <span
-                            className="block w-2 h-2 rounded-full"
-                            style={{ backgroundColor: p.color }}
-                          />
-                        )}
-                      </motion.span>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </AnimatePresence>
-            </div>
+            {/* Aviso dinámico flotante sobre el contador cuando el estudiante gana estrellas al usar la app */}
+            <AnimatePresence>
+              {pulsos.map((pulso) => (
+                <motion.span
+                  key={pulso.id}
+                  initial={{ opacity: 0, y: 4, scale: 0.85 }}
+                  animate={{ opacity: [0, 1, 1, 0], y: -24, scale: [0.9, 1.06, 1] }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 1.0, ease: 'easeOut' }}
+                  className="pointer-events-none absolute -top-1 right-1 whitespace-nowrap px-2 py-0.5 rounded-full bg-[var(--color-superficie)] border border-[var(--color-oro)] text-[var(--color-texto)] shadow-sm text-[11.5px] font-bold inline-flex items-center gap-1 z-40"
+                >
+                  <IconoEstrellaPombo className="w-3 h-3" activo={true} />
+                  <span>+{pulso.cantidadGanada}</span>
+                </motion.span>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>

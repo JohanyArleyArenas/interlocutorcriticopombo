@@ -1219,46 +1219,62 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-2.5 z-10 -mr-1 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 z-10 -mr-1 shrink-0">
             <button
               type="button"
               onClick={() => alternarModoLectura()}
               aria-pressed={modoLecturaActivo}
               title={
                 modoLecturaActivo
-                  ? 'Modo Lectura activado (toca para volver a la vista estándar)'
-                  : 'Activar Modo Lectura para ampliar letra y ocultar distracciones'
+                  ? 'Modo Lectura activo: interlineado y tamaño de fuente ampliados (clic para vista estándar)'
+                  : 'Activar Modo Lectura: aumenta el interlineado y el tamaño de fuente para reducir la fatiga visual'
               }
-              aria-label="Alternar Modo Lectura"
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[12.5px] sm:text-[13px] font-medium transition-colors focus-visible:outline-none ${
+              aria-label={
                 modoLecturaActivo
-                  ? 'bg-[var(--color-acento)] text-white border-[var(--color-acento)]'
-                  : 'border-[var(--color-separador)] bg-[var(--color-fondo)] text-[var(--color-secundario)] hover:text-[var(--color-texto)]'
+                  ? 'Modo Lectura activado. Pulsa para volver al tamaño de fuente e interlineado estándar'
+                  : 'Activar Modo Lectura para aumentar el interlineado y el tamaño de fuente'
+              }
+              className={`inline-flex items-center gap-1.5 min-h-[34px] px-2.5 sm:px-3 py-1 rounded-full border text-[12.5px] sm:text-[13px] transition-all cursor-pointer focus-visible:outline-none ${
+                modoLecturaActivo
+                  ? 'bg-[var(--color-acento)] text-[#FBFCFA] border-[var(--color-acento)] font-semibold sombra-boton-acento'
+                  : 'border-[var(--color-separador)] bg-[var(--color-fondo)] text-[var(--color-texto)] hover:border-[var(--color-acento)] font-medium'
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden xs:inline">Lectura</span>
+              <BookOpen
+                className="w-3.5 h-3.5 shrink-0"
+                strokeWidth={modoLecturaActivo ? 2.4 : 1.85}
+                aria-hidden="true"
+              />
+              <span>Modo Lectura</span>
+              <span
+                aria-hidden="true"
+                className={`text-[11px] leading-none px-1 py-0.5 rounded ${
+                  modoLecturaActivo
+                    ? 'bg-white/20 text-[#FBFCFA] font-bold'
+                    : 'bg-[var(--color-superficie)] text-[var(--color-acento)] font-semibold border border-[var(--color-separador)]'
+                }`}
+              >
+                Aa+
+              </span>
             </button>
 
             {MODOS_CON_CIERRE.includes(modeKey) && (
               <>
-                {!modoLecturaActivo && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerifAbierta(true);
-                      setVerifError('');
-                      setBarraVisible(true);
-                    }}
-                    disabled={isLoading}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--color-acento)]/30 bg-[var(--color-acento)]/10 text-[13px] sm:text-[14px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-acento)]/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
-                    aria-label="Registrar lo que verificaste fuera de la IA"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                    <span className="hidden sm:inline">Lo verifiqué por fuera</span>
-                    <span className="sm:hidden">Verifiqué</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifAbierta(true);
+                    setVerifError('');
+                    setBarraVisible(true);
+                  }}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-1 min-h-[34px] px-2.5 py-1 rounded-full border border-[var(--color-acento)]/30 bg-[var(--color-acento)]/10 text-[12.5px] sm:text-[13.5px] font-medium text-[var(--color-acento)] hover:bg-[var(--color-acento)]/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                  aria-label="Registrar lo que verificaste fuera de la IA"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden md:inline">Lo verifiqué por fuera</span>
+                  <span className="md:hidden">Verifiqué</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1267,7 +1283,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     setBarraVisible(true);
                   }}
                   disabled={turnosEstudiante === 0 || isLoading}
-                  className="inline-flex items-center gap-1 text-[14px] sm:text-[15px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
+                  className="inline-flex items-center gap-1 text-[13.5px] sm:text-[14.5px] font-medium text-[var(--color-acento)] hover:opacity-75 transition-opacity shrink-0 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none"
                   aria-label="Terminar la sesión y reflexionar"
                 >
                   <Flag className="w-4 h-4" />
@@ -1627,6 +1643,27 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       {/* Hilo de mensajes scrollable */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 pt-[74px] pb-2" onScroll={manejarScroll}>
         <div ref={listRef} className="max-w-[720px] mx-auto space-y-6">
+          {modoLecturaActivo && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="message-appear flex items-center justify-between gap-3 px-3.5 py-2 rounded-[12px] bg-[var(--color-acento-suave)] border border-[var(--color-acento)]/30 text-[var(--color-texto)]"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <BookOpen className="w-4 h-4 text-[var(--color-acento)] shrink-0" strokeWidth={2.3} aria-hidden="true" />
+                <span className="text-[13.5px] font-medium leading-snug">
+                  <strong className="font-semibold text-[var(--color-acento)]">Modo Lectura activo:</strong> tamaño de fuente ampliado e interlineado extendido para reducir la fatiga visual.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => alternarModoLectura()}
+                className="shrink-0 text-[12.5px] font-semibold text-[var(--color-acento)] hover:underline px-2 py-1 rounded-md cursor-pointer"
+              >
+                Vista estándar
+              </button>
+            </div>
+          )}
           {messages.map((msg) => {
             const isUser = msg.role === 'user';
 // Entrenador Saber 11: tarjeta de la pregunta (página real del cuadernillo + opciones)
@@ -1717,7 +1754,13 @@ if (msg.selector) {
 
                   {/* Burbuja del estudiante */}
                   {msg.text && (
-                    <div className="burbuja-usuario max-w-[85%] sm:max-w-[75%] rounded-[18px] rounded-br-[6px] px-4 py-2.5 bg-[#1F5A40] text-[#FBFCFA] text-[16px] leading-relaxed whitespace-pre-wrap select-text">
+                    <div
+                      className={`burbuja-usuario max-w-[85%] sm:max-w-[75%] rounded-[18px] rounded-br-[6px] px-4 py-2.5 bg-[#1F5A40] text-[#FBFCFA] whitespace-pre-wrap select-text ${
+                        modoLecturaActivo
+                          ? 'text-[18px] leading-[1.8] tracking-[0.01em]'
+                          : 'text-[16px] leading-relaxed'
+                      }`}
+                    >
                       {msg.text}
                     </div>
                   )}
@@ -1740,7 +1783,7 @@ if (msg.selector) {
                   style={{ animationDelay: '40ms' }}
                   className="anim-tarjeta rounded-[14px] bg-[var(--color-superficie)] border border-[var(--color-separador)] overflow-hidden"
                 >
-                  {!modoLecturaActivo && (
+                  {(sinMensajes || !modoLecturaActivo) && (
                     <div className="p-5 sm:p-6">
                       <div
                         style={{ animationDelay: '90ms' }}
@@ -1750,43 +1793,46 @@ if (msg.selector) {
                           <IconoModo className="w-5 h-5" aria-hidden="true" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-literata text-[19px] font-semibold tracking-[-0.01em] text-[var(--color-texto)] leading-snug">
+                          <h3
+                            className={`font-literata font-semibold tracking-[-0.01em] text-[var(--color-texto)] leading-snug ${
+                              modoLecturaActivo ? 'text-[21px]' : 'text-[19px]'
+                            }`}
+                          >
                             {modo.titulo}
                           </h3>
                           {modo.descripcion && (
-                            <p className="text-[15px] text-[var(--color-secundario)] leading-relaxed mt-1">
+                            <p
+                              className={`modo-lectura-descripcion text-[var(--color-secundario)] mt-1 ${
+                                modoLecturaActivo
+                                  ? 'text-[17px] leading-[1.78]'
+                                  : 'text-[15px] leading-relaxed'
+                              }`}
+                            >
                               {modo.descripcion}
                             </p>
-                          )}
-                          {(modo.busqueda || modo.adjuntos) && (
-                            <div className="flex flex-wrap gap-1.5 mt-3">
-                              {modo.busqueda && (
-                                <span className="inline-flex items-center gap-1 text-[13px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[var(--color-secundario)]">
-                                  <Globe className="w-3.5 h-3.5" aria-hidden="true" /> Busca en Google
-                                </span>
-                              )}
-                              {modo.adjuntos && (
-                                <span className="inline-flex items-center gap-1 text-[13px] font-medium px-2.5 py-1 rounded-full bg-[var(--color-fondo)] border border-[var(--color-separador)] text-[var(--color-secundario)]">
-                                  <Paperclip className="w-3.5 h-3.5" aria-hidden="true" /> Acepta archivos
-                                </span>
-                              )}
-                            </div>
                           )}
                         </div>
                       </div>
 
-                      {pasos.length > 0 && (
-                        <ol className="mt-5 grid gap-2 sm:grid-cols-3" aria-label="Cómo funciona">
+                      {esIcfes && pasos.length > 0 && (
+                        <ol className="mt-4 grid gap-2 sm:grid-cols-3" aria-label="Cómo funciona">
                           {pasos.map((paso, i) => (
                             <li
                               key={i}
-                              style={{ animationDelay: `${170 + i * 95}ms` }}
-                              className="anim-tarjeta flex sm:flex-col items-start gap-3 sm:gap-2 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] px-3.5 py-3"
+                              className="flex sm:flex-col items-start gap-2.5 sm:gap-1.5 rounded-[10px] bg-[var(--color-fondo)] border border-[var(--color-separador)] px-3 py-2.5"
                             >
-                              <span className="w-6 h-6 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[12px] font-semibold flex items-center justify-center shrink-0">
+                              <span className="w-5 h-5 rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[11.5px] font-semibold flex items-center justify-center shrink-0">
                                 {i + 1}
                               </span>
-                              <span className="text-[14px] leading-snug text-[var(--color-texto)]">{paso}</span>
+                              <span
+                                className={`modo-lectura-paso text-[var(--color-texto)] ${
+                                  modoLecturaActivo
+                                    ? 'text-[16px] leading-[1.72]'
+                                    : 'text-[13.5px] leading-snug'
+                                }`}
+                              >
+                                {paso}
+                              </span>
                             </li>
                           ))}
                         </ol>
@@ -1794,14 +1840,11 @@ if (msg.selector) {
                     </div>
                   )}
 
-                  <div className={`px-5 sm:px-6 py-4 ${!modoLecturaActivo ? 'border-t border-[var(--color-separador)]' : ''}`}>
+                  <div className={`px-5 sm:px-6 py-4 ${(sinMensajes || !modoLecturaActivo) ? 'border-t border-[var(--color-separador)]' : ''}`}>
                     <div
-                      style={{ animationDelay: '360ms' }}
+                      style={{ animationDelay: '220ms' }}
                       className="anim-entrada"
                     >
-                      <p className="text-[14px] font-semibold text-[var(--color-acento)] mb-1.5">
-                        Para empezar
-                      </p>
                       <div className="prose-apple select-text">
                         <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{prepararMatematicas(msg.text)}</ReactMarkdown>
                       </div>
@@ -1824,10 +1867,10 @@ if (msg.selector) {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <p className="text-[14px] font-semibold text-[var(--color-texto)] leading-snug">
-                              ¿Tienes ejercicios resueltos en clase por tu profesor? (opcional)
+                              Apuntes o ejemplos de clase (opcional)
                             </p>
                             <p className="text-[13px] text-[var(--color-secundario)] leading-relaxed mt-0.5">
-                              Sube fotos de tu cuaderno, del tablero o de la guía hecha en el salón. El tutor copiará ese mismo método y orden de pasos para explicarte tal como enseña tu profesor.
+                              Sube una foto de tu cuaderno o guía para seguir el mismo método de tu profesor.
                             </p>
                           </div>
                           <input
@@ -2087,8 +2130,8 @@ Cambiar de área
             </div>
           )}
 
-          <div ref={messagesEndRef} aria-hidden="true" className="-mt-4" />
         </div>
+        <div ref={messagesEndRef} aria-hidden="true" className="h-0" />
         <div aria-hidden="true" style={{ height: espacioFinal }} />
       </div>
 

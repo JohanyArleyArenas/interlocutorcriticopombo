@@ -35,6 +35,8 @@ export interface RecompensaTienda {
 
 export type CategoriaCulturaGeneral =
   | 'Colombia y Santander'
+  | 'Matemáticas y Lógica'
+  | 'Geografía y Planeta'
   | 'Ciencia y Universo'
   | 'Literatura y Arte'
   | 'Historia y Mundo';
@@ -83,6 +85,7 @@ export interface EstadoGamificacion {
     desafiosRelampagoGanados: number;
     aciertosCulturalesTotales?: number;
     categoriasCulturales?: Record<string, number>;
+    preguntasCulturalesVistas?: string[];
   };
   retosFecha: string;
   retos: Record<string, { actual: number; completado: boolean; reclamado: boolean }>;
@@ -125,7 +128,7 @@ export const CATALOGO_RETOS_DIARIOS: Array<{
   {
     id: 'reto-dialogo',
     titulo: 'Mente en diálogo',
-    descripcion: 'Escribe 3 respuestas argumentadas (8+ palabras) cuestionando o explicando con tus palabras.',
+    descripcion: 'Argumenta con tus propias palabras en tres intervenciones.',
     meta: 3,
     estrellas: 3,
     xp: 45,
@@ -134,7 +137,7 @@ export const CATALOGO_RETOS_DIARIOS: Array<{
   {
     id: 'reto-verificacion',
     titulo: 'Detective de fuentes',
-    descripcion: 'Comprueba 1 dato fuera de la IA usando el botón «Lo verifiqué por fuera».',
+    descripcion: 'Comprueba un dato en una fuente externa real.',
     meta: 1,
     estrellas: 4,
     xp: 60,
@@ -143,7 +146,7 @@ export const CATALOGO_RETOS_DIARIOS: Array<{
   {
     id: 'reto-saber-tutor',
     titulo: 'Rigor en acción',
-    descripcion: 'Resuelve 2 retos en el Entrenador Saber 11 o en el Tutor de Matemáticas, Física y Química.',
+    descripcion: 'Resuelve dos ejercicios en Saber 11 o en el Tutor.',
     meta: 2,
     estrellas: 4,
     xp: 55,
@@ -151,8 +154,8 @@ export const CATALOGO_RETOS_DIARIOS: Array<{
   },
   {
     id: 'reto-metacognicion',
-    titulo: 'Desafío de Cultura General o Reflexión',
-    descripcion: 'Supera el Desafío Diario de Cultura General o completa la reflexión final («Terminar») de una sesión.',
+    titulo: 'Cultura y reflexión',
+    descripcion: 'Completa una ronda cultural o el cierre de una sesión.',
     meta: 1,
     estrellas: 5,
     xp: 75,
@@ -164,98 +167,98 @@ export const INSIGNIAS_CATALOGO: InsigniaConfig[] = [
   {
     id: 'primera-chispa',
     nombre: 'Primera Chispa',
-    descripcion: 'Formulaste tu primer planteamiento argumentado con criterio propio.',
+    descripcion: 'Formulaste tu primer planteamiento con criterio propio.',
     icono: 'sparkles',
-    condicionTexto: 'Escribir tu primera intervención argumentada',
+    condicionTexto: 'Primera intervención argumentada',
   },
   {
     id: 'ojo-esceptico',
     nombre: 'Ojo Escéptico',
-    descripcion: 'Contrastaste una afirmación de la IA en una fuente externa real.',
+    descripcion: 'Contrastaste un dato en una fuente externa real.',
     icono: 'search-check',
-    condicionTexto: 'Registrar 1 verificación en «Lo verifiqué por fuera»',
+    condicionTexto: 'Registrar una verificación externa',
   },
   {
     id: 'metodologia-aula',
     nombre: 'Fiel al Aula',
-    descripcion: 'Subiste ejemplos de clase o un borrador propio para trabajar sobre tu proceso.',
+    descripcion: 'Subiste apuntes de clase o un borrador propio.',
     icono: 'book-open',
-    condicionTexto: 'Subir un ejemplo del salón o borrador propio',
+    condicionTexto: 'Subir apuntes o borrador propio',
   },
   {
     id: 'imparable-saber',
     nombre: 'Estratega Saber 11',
-    descripcion: 'Lograste acertar 3 preguntas del cuadernillo oficial del ICFES.',
+    descripcion: 'Acertaste tres preguntas oficiales del ICFES.',
     icono: 'award',
-    condicionTexto: 'Acumular 3 aciertos en el Entrenador Saber 11',
+    condicionTexto: 'Tres aciertos en Saber 11',
   },
   {
     id: 'cazador-sesgos',
     nombre: 'Mente Enciclopédica',
-    descripcion: 'Superaste con éxito el Desafío Diario de Cultura General demostrando amplitud de conocimientos.',
+    descripcion: 'Superaste una ronda del desafío de cultura general.',
     icono: 'zap',
-    condicionTexto: 'Completar 1 Desafío de Cultura General',
+    condicionTexto: 'Completar una ronda cultural',
   },
   {
     id: 'pensador-reflexivo',
     nombre: 'Pensador Metacognitivo',
-    descripcion: 'Cerraste una sesión evaluando qué aprendiste y qué pensaste sin ayuda.',
+    descripcion: 'Cerraste una sesión reflexionando sobre lo aprendido.',
     icono: 'compass',
-    condicionTexto: 'Completar 1 reflexión de cierre de sesión',
+    condicionTexto: 'Completar un cierre de sesión',
   },
   {
     id: 'explorador-integral',
     nombre: 'Explorador Integral',
-    descripcion: 'Pusiste a prueba tu mente en al menos 4 modos distintos del Interlocutor.',
+    descripcion: 'Practicaste en cuatro estaciones distintas de estudio.',
     icono: 'layers',
-    condicionTexto: 'Participar en 4 modos diferentes',
+    condicionTexto: 'Explorar cuatro modos distintos',
   },
   {
     id: 'orgullo-pombo',
     nombre: 'Orgullo Rafael Pombo',
-    descripcion: 'Acumulaste 25 estrellas demostrando constancia y pensamiento autónomo.',
+    descripcion: 'Alcanzaste veinticinco estrellas con trabajo constante.',
     icono: 'crown',
-    condicionTexto: 'Alcanzar 25 estrellas acumuladas',
+    condicionTexto: 'Reunir 25 estrellas acumuladas',
   },
 ];
 
 export const RECOMPENSAS_CANJEABLES: RecompensaTienda[] = [
   {
     id: 'item-escudo',
-    nombre: 'Escudo Protector de Racha',
-    descripcion: 'Protege tu racha diaria automáticamente si un día no puedes practicar.',
+    nombre: 'Escudo de racha',
+    descripcion: 'Conserva tu racha diaria si un día no puedes practicar.',
     costoEstrellas: 6,
     tipo: 'escudo',
     valor: 'escudo',
   },
   {
     id: 'item-comodin',
-    nombre: 'Lupa Crítica (+2 Pistas)',
-    descripcion: 'Añade 2 pistas analíticas para usar en el Desafío Relámpago sin perder vidas.',
+    nombre: 'Lupa crítica (+2 pistas)',
+    descripcion: 'Suma dos pistas para usar en el desafío cultural.',
     costoEstrellas: 5,
     tipo: 'comodines',
     valor: '2',
   },
   {
     id: 'titulo-cazador',
-    nombre: 'Título: Cazador de Falacias',
-    descripcion: 'Insignia de rango visible junto a tu código de estudiante.',
+    nombre: 'Cazador de Falacias',
+    descripcion: 'Distinción visible junto a tu código de estudiante.',
     costoEstrellas: 10,
     tipo: 'titulo',
     valor: 'Cazador de Falacias',
   },
   {
     id: 'titulo-verificador',
-    nombre: 'Título: Guardián de la Evidencia',
-    descripcion: 'Distinción para quienes jamás aceptan un dato sin comprobar su fuente.',
+    nombre: 'Guardián de la Evidencia',
+    descripcion: 'Reconocimiento por contrastar datos con fuentes reales.',
     costoEstrellas: 18,
     tipo: 'titulo',
     valor: 'Guardián de la Evidencia',
   },
   {
     id: 'titulo-pombo',
-    nombre: 'Título: Mente Maestra Pombo',
-    descripcion: 'El máximo reconocimiento de pensamiento crítico en el Liceo Superior Rafael Pombo.',
+    nombre: 'Mente Maestra Pombo',
+    descripcion: 'Máxima distinción académica del Liceo Rafael Pombo.',
     costoEstrellas: 30,
     tipo: 'titulo',
     valor: 'Mente Maestra Pombo',
@@ -263,7 +266,9 @@ export const RECOMPENSAS_CANJEABLES: RecompensaTienda[] = [
 ];
 
 export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
-  // --- COLOMBIA Y SANTANDER ---
+  // ==========================================================================
+  // 1. COLOMBIA Y SANTANDER (10 preguntas)
+  // ==========================================================================
   {
     id: 'cg-col-1',
     categoria: 'Colombia y Santander',
@@ -272,8 +277,8 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
     pregunta: '¿Cómo se conoce históricamente a este levantamiento y quién rompió el edicto de los nuevos impuestos?',
     opciones: [
       'La Rebelión de los Comuneros, iniciada por Manuela Beltrán.',
-      'La Patria Boba, liderada por Antonio Nariño.',
-      'La Guerra de los Mil Días, promovida por guerrillas liberales en Santander.',
+      'La Patria Boba neogranadina, liderada por Antonio Nariño.',
+      'La Guerra de los Mil Días, promovida por liberales radicales.',
     ],
     correcta: 0,
     pista: 'Ocurrió en 1781 bajo el lema «¡Viva el Rey y muera el mal gobierno!» frente al impuesto de la Armada de Barlovento.',
@@ -288,8 +293,8 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
     pregunta: '¿En qué categoría de biodiversidad ocupa Colombia el PRIMER lugar a nivel mundial?',
     opciones: [
       'Variedad de especies de aves y de orquídeas.',
-      'Extensión de arrecifes coralinos y manglares costeros.',
-      'Cantidad de mamíferos grandes y reptiles de alta montaña.',
+      'Extensión de arrecifes coralinos y manglares.',
+      'Cantidad de mamíferos grandes de alta montaña.',
     ],
     correcta: 0,
     pista: 'Piensa en los cielos de nuestras selvas y páramos, y en la flor nacional (Cattleya trianae).',
@@ -304,8 +309,8 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
     pregunta: '¿En qué río desemboca el río Fonce y hacia qué gran cuenca hidrográfica de Colombia fluyen finalmente sus aguas?',
     opciones: [
       'En el río Suárez, hacia la cuenca del río Magdalena.',
-      'En el río Cauca hacia el mar Caribe.',
-      'En el río Chicamocha, que fluye directo hacia la cuenca del Orinoco.',
+      'En el río Cauca, rumbo a las llanuras del Caribe.',
+      'En el río Chicamocha, directo hacia el río Orinoco.',
     ],
     correcta: 0,
     pista: 'El río Fonce se une al río Suárez cerca de San Gil/Galán, el cual luego forma el río Sogamoso tributario del Magdalena.',
@@ -320,82 +325,442 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
     pregunta: '¿Qué leyenda mundial nació a partir de esta ceremonia indígena y cómo se llama la pieza de orfebrería?',
     opciones: [
       'La leyenda de El Dorado y la Balsa Muisca.',
-      'La leyenda de Bachué, esculpida en el Poporo Quimbaya.',
-      'El mito de Bochica, grabado en los monolitos de San Agustín.',
+      'La leyenda de Bachué en el Poporo Quimbaya.',
+      'El mito de Bochica en monolitos de San Agustín.',
     ],
     correcta: 0,
     pista: 'El heredero cubría su cuerpo con polvo de oro y se sumergía en las aguas sagradas de la laguna.',
     explicacion:
       'La Balsa Muisca recrea el rito de la laguna de Guatavita que dio origen a la leyenda de El Dorado, motor de numerosas expediciones en el siglo XVI.',
   },
+  {
+    id: 'cg-col-5',
+    categoria: 'Colombia y Santander',
+    contexto:
+      'El 4 de agosto de 1819, pocos días antes de la Batalla del Puente de Boyacá, los habitantes de una población vecina a San Gil enfrentaron a las tropas realistas de Lucas González para impedir que reforzaran a Barreiro.',
+    pregunta: '¿Cómo se conoce a esta batalla decisiva librada a orillas del río Pienta en territorio santandereano?',
+    opciones: [
+      'La Batalla del Pienta en el municipio de Charalá.',
+      'La Batalla del Pantano de Vargas en tierras boyacenses.',
+      'La Batalla de Palonegro cerca de la ciudad de Bucaramanga.',
+    ],
+    correcta: 0,
+    pista: 'Se libró en la vecina población de Charalá y detuvo durante tres días el refuerzo militar realista.',
+    explicacion:
+      'El sacrificio del pueblo de Charalá en la Batalla del Pienta (4 de agosto de 1819) impidió que 800 soldados realistas llegaran a Tunja, facilitando el triunfo patriota el 7 de agosto.',
+  },
+  {
+    id: 'cg-col-6',
+    categoria: 'Colombia y Santander',
+    contexto:
+      'Antes de la llegada de los conquistadores españoles en el siglo XVI, las escarpadas montañas, mesas y cañones entre los ríos Chicamocha, Suárez y Fonce estaban habitados por un pueblo indígena de lengua chibcha.',
+    pregunta: '¿Qué pueblo indígena habitó la provincia de Guanentá y la Mesa de Jéridas dejando pictografías y tejidos de algodón?',
+    opciones: [
+      'El pueblo Guane de las montañas santandereanas.',
+      'La cultura Tayrona de las estribaciones costeñas.',
+      'La confederación Zenú de las sabanas inundables.',
+    ],
+    correcta: 0,
+    pista: 'De su cacique Guanentá proviene el nombre de nuestra provincia con capital en San Gil.',
+    explicacion:
+      'Los Guanes habitaron el cañón del Chicamocha, la Mesa de los Santos, Barichara y el valle del río Fonce, destacándose como tejedores de mantas de algodón y alfareros.',
+  },
+  {
+    id: 'cg-col-7',
+    categoria: 'Colombia y Santander',
+    contexto:
+      'El Parque Natural El Gallineral, ubicado en una isla de 4 hectáreas formada entre el río Fonce y la quebrada Curití en San Gil, debe su nombre a una planta epífita que cuelga de sus ceibas y anacos.',
+    pregunta: '¿Qué tipo de planta son las «barbas de viejo» (Tillandsia usneoides) que adornan los árboles del parque?',
+    opciones: [
+      'Una bromelia epífita que absorbe humedad del aire.',
+      'Un hongo parásito que extrae savia de las raíces.',
+      'Un helecho acuático que crece bajo piedras del río.',
+    ],
+    correcta: 0,
+    pista: 'No es un parásito ni un musgo: vive sobre las ramas sin dañar el árbol y capta agua de la brisa del río Fonce.',
+    explicacion:
+      'El musgo español o «barba de viejo» (Tillandsia usneoides) es una planta angiosperma de la familia de las bromelias (como la piña) que vive como epífita sin parasitar al árbol.',
+  },
+  {
+    id: 'cg-col-8',
+    categoria: 'Colombia y Santander',
+    contexto:
+      'En el macizo montañoso entre Santander y Norte de Santander se encuentra una fábrica natural de agua dulce que abastece a más de dos millones de personas en Bucaramanga, Cúcuta y decenas de municipios.',
+    pregunta: '¿Cómo se llama este ecosistema estratégico de alta montaña caracterizado por sus frailejones?',
+    opciones: [
+      'El Páramo de Santurbán en la cordillera Oriental.',
+      'El Parque Nacional Natural Los Nevados del Ruiz.',
+      'La Serranía de la Macarena en la cuenca del Guaviare.',
+    ],
+    correcta: 0,
+    pista: 'Sus frailejones atrapan la niebla andina por encima de los 3.000 metros sobre el nivel del mar en Santander.',
+    explicacion:
+      'El Páramo de Santurbán regula el ciclo hídrico de Santander y Norte de Santander; sus suelos y frailejones retienen el agua de la neblina y alimentan ríos vitales.',
+  },
+  {
+    id: 'cg-col-9',
+    categoria: 'Colombia y Santander',
+    contexto:
+      'A solo 20 kilómetros de San Gil se levanta un municipio declarado Monumento Nacional en 1978 por su arquitectura en piedra amarilla labrada a mano y sus caminos reales construidos por comunidades indígenas y coloniales.',
+    pregunta: '¿De qué municipio de la provincia de Guanentá se trata y con qué pueblo se conecta por el Camino Real?',
+    opciones: [
+      'Barichara, conectado por camino de piedra con Guane.',
+      'Vélez, comunicado por trocha real con Puente Nacional.',
+      'Girón, enlazado por puentes coloniales con Floridablanca.',
+    ],
+    correcta: 0,
+    pista: 'Su nombre en lengua guane significa «lugar de descanso» y sus calles están pavimentadas en piedra caliza.',
+    explicacion:
+      'Barichara conserva intacta su traza colonial en tapia pisada y piedra labrada, y su histórico Camino Real desciende hasta el centro poblado de Guane a orillas del río Suárez.',
+  },
+  {
+    id: 'cg-col-10',
+    categoria: 'Colombia y Santander',
+    contexto:
+      'Promulgada el 4 de julio de 1991 por una Asamblea Nacional Constituyente tras el movimiento estudiantil de la «Séptima Papeleta», la actual Constitución de Colombia introdujo mecanismos directos para proteger los derechos fundamentales.',
+    pregunta: '¿Qué mecanismo constitucional permite a cualquier ciudadano reclamar ante un juez la protección inmediata de sus derechos fundamentales?',
+    opciones: [
+      'La Acción de Tutela consagrada en el artículo 86.',
+      'El Referendo Constitucional aprobado en el Congreso.',
+      'El Cabildo Abierto convocado por las juntas locales.',
+    ],
+    correcta: 0,
+    pista: 'Debe ser resuelta por el juez en un plazo máximo de diez días cuando un derecho fundamental está amenazado.',
+    explicacion:
+      'La Acción de Tutela (artículo 86 de la Constitución de 1991) transformó la justicia colombiana al permitir a cualquier persona defender derechos como la salud, la vida y la educación.',
+  },
 
-  // --- LITERATURA Y ARTE ---
+  // ==========================================================================
+  // 2. MATEMÁTICAS Y LÓGICA (10 preguntas)
+  // ==========================================================================
   {
-    id: 'cg-lit-1',
-    categoria: 'Literatura y Arte',
+    id: 'cg-mat-1',
+    categoria: 'Matemáticas y Lógica',
     contexto:
-      'Nuestro colegio lleva con orgullo el nombre de Rafael Pombo (1833–1912), coronado en 1905 como Poeta Nacional de Colombia en el Teatro Colón de Bogotá.',
-    pregunta: 'Además de «El Renacuajo Paseador» y «La Pobre Viejecita», ¿cuál de estas obras pertenece también a la pluma de Rafael Pombo?',
+      'En una famosa paradoja de crecimiento exponencial, un nenúfar en un lago duplica su tamaño cada día. Si el lago entero tarda exactamente 30 días en cubrirse por completo con la planta:',
+    pregunta: '¿En qué día estuvo el lago cubierto exactamente hasta la MITAD de su superficie?',
     opciones: [
-      '«Mirringa Mirronga» y el poema «Hora de tinieblas».',
-      '«La Vorágine» y «María».',
-      '«El coronel no tiene quien le escriba» y «Los funerales de la Mamá Grande».',
+      'En el día 29, un día antes de llenarse.',
+      'En el día 15, justo a la mitad del mes.',
+      'En el día 20, tras dos tercios del ciclo.',
     ],
     correcta: 0,
-    pista: 'Incluye una famosa gata que invita a sus amigas a cenar y uno de los poemas filosóficos más intensos del romanticismo colombiano.',
+    pista: 'Si cada día duplica su área y el día 30 llega al 100 %, piensa qué porcentaje tenía el día inmediatamente anterior.',
     explicacion:
-      'Rafael Pombo no solo escribió fábulas infantiles inmortales como «Mirringa Mirronga» y «Pastorcita», sino también profunda poesía romántica y traducciones clásicas.',
+      'Al duplicarse cada día, el día 29 cubría la mitad (50 %) del lago, y al duplicarse una vez más en el día 30 alcanzó el 100 %. Es una trampa clásica de intuición lineal frente a crecimiento exponencial.',
   },
   {
-    id: 'cg-lit-2',
-    categoria: 'Literatura y Arte',
+    id: 'cg-mat-2',
+    categoria: 'Matemáticas y Lógica',
     contexto:
-      'En 1982, la Academia Sueca otorgó el Premio Nobel de Literatura a Gabriel García Márquez «por sus novelas e historias cortas, en las que lo fantástico y lo real se combinan en un mundo ricamente compuesto».',
-    pregunta: '¿Con qué título pronunció García Márquez su histórico discurso de aceptación del Premio Nobel en Estocolmo?',
+      'Un comerciante en el mercado de San Gil sube el precio de un saco de café en un 20 % durante la cosecha baja, y semanas después aplica un descuento del 20 % sobre ese nuevo precio.',
+    pregunta: 'En comparación con el precio original de partida, ¿cómo queda el precio final del saco de café?',
     opciones: [
-      '«La soledad de América Latina».',
-      '«El cataclismo de Damocles y la memoria».',
-      '«Botella al mar para el dios de las palabras».',
+      'Queda un 4 % más barato que el precio inicial.',
+      'Vuelve exactamente al mismo valor del principio.',
+      'Termina un 2 % más costoso que el precio original.',
     ],
     correcta: 0,
-    pista: 'En ese discurso reclama el derecho de nuestra región a tener «una segunda oportunidad sobre la tierra».',
+    pista: 'Si el saco costaba $100, subir 20 % lo lleva a $120. Ahora calcula cuánto es el 20 % de $120.',
     explicacion:
-      'Su discurso «La soledad de América Latina» (diciembre de 1982) es una de las piezas oratorias más importantes del siglo XX sobre la identidad e historia de nuestro continente.',
+      'Si empezamos en 100, +20 % da 120. El 20 % de 120 es 24, y 120 − 24 = 96. Como el descuento se calcula sobre una base mayor, el precio final es el 96 % del inicial (4 % menos).',
   },
   {
-    id: 'cg-lit-3',
-    categoria: 'Literatura y Arte',
+    id: 'cg-mat-3',
+    categoria: 'Matemáticas y Lógica',
     contexto:
-      'En 1937, tras el bombardeo aéreo sobre una villa vasca durante la Guerra Civil Española, Pablo Picasso pintó un monumental lienzo en blanco, negro y escalas de gris.',
-    pregunta: '¿Cómo se titula esta obra maestra del arte del siglo XX y qué simboliza hoy en el mundo?',
+      'Observa la famosa sucesión matemática descrita en 1202 por Leonardo de Pisa: 1, 1, 2, 3, 5, 8, 13, 21, 34... Esta serie aparece en la disposición de las semillas del girasol y las piñas de los pinos.',
+    pregunta: '¿Cómo se llama esta sucesión y cuál es el número que sigue inmediatamente después del 34?',
     opciones: [
-      '«Guernica», denuncia contra la barbarie de la guerra.',
-      '«Las Meninas», retrato de la corte real.',
-      '«Los fusilamientos del tres de mayo», sobre la invasión en Madrid.',
+      'Sucesión de Fibonacci y el siguiente número es 55.',
+      'Progresión de Gauss y el siguiente término es 52.',
+      'Serie de Pitágoras y el siguiente elemento es 68.',
     ],
     correcta: 0,
-    pista: 'Lleva el nombre de la población vasca bombardeada el 26 de abril de 1937.',
+    pista: 'Cada término se obtiene sumando los dos números inmediatamente anteriores de la lista (21 + 34).',
     explicacion:
-      'El «Guernica» de Pablo Picasso (hoy en el Museo Reina Sofía de Madrid) utiliza el lenguaje del cubismo y el expresionismo para denunciar el horror de la guerra.',
+      'En la sucesión de Fibonacci cada término es la suma de los dos anteriores: 21 + 34 = 55. Además, el cociente entre números consecutivos se aproxima al número áureo (φ ≈ 1,618).',
   },
   {
-    id: 'cg-lit-4',
-    categoria: 'Literatura y Arte',
+    id: 'cg-mat-4',
+    categoria: 'Matemáticas y Lógica',
     contexto:
-      'Publicada en dos partes (1605 y 1615) por Miguel de Cervantes Saavedra, es considerada la primera novela moderna de la literatura universal.',
-    pregunta: '¿Con qué famosa frase inicia «Don Quijote de la Mancha» y cuál era el verdadero nombre del hidalgo en la novela?',
+      'Los números primos son aquellos mayores que 1 que solo tienen dos divisores positivos distintos: el 1 y ellos mismos. Son considerados los «ladrillos fundamentales» de la aritmética.',
+    pregunta: '¿Cuál es el único número primo que es PAR y por qué el número 1 no se clasifica como primo?',
     opciones: [
-      '«En un lugar de la Mancha...» y se llamaba Alonso Quijano.',
-      '«Muchos años después...» y se llamaba Aureliano Buendía.',
-      '«Vine a Comala porque me dijeron...» y se llamaba Juan Preciado.',
+      'El 2 es el único par primo; el 1 tiene un solo divisor.',
+      'El 4 es el menor par primo; el 1 es un número neutro.',
+      'No existen primos pares; el 1 divide a todos los demás.',
     ],
     correcta: 0,
-    pista: 'Alonso Quijano enloquece leyendo libros de caballerías y sale al mundo junto a Sancho Panza.',
+    pista: 'Cualquier otro número par mayor que 2 se puede dividir entre 2, por lo que tendría al menos tres divisores.',
     explicacion:
-      'Miguel de Cervantes creó con Alonso Quijano (Don Quijote) y Sancho Panza un diálogo inmortal entre el idealismo y el sentido práctico humano.',
+      'El 2 es el único número primo par. El 1 no se considera primo porque solo tiene un divisor positivo (él mismo) y excluirlo garantiza el Teorema Fundamental de la Aritmética.',
+  },
+  {
+    id: 'cg-mat-5',
+    categoria: 'Matemáticas y Lógica',
+    contexto:
+      'En arquitectura y topografía se usa a diario un triángulo rectángulo clásico cuyos dos catetos miden 3 metros y 4 metros para verificar esquinas de 90 grados sin transportador.',
+    pregunta: 'Según el Teorema de Pitágoras (a² + b² = c²), ¿cuánto mide exactamente la hipotenusa de ese triángulo?',
+    opciones: [
+      'Mide exactamente 5 metros de longitud.',
+      'Mide exactamente 7 metros de diagonal.',
+      'Mide exactamente 6 metros de extremo.',
+    ],
+    correcta: 0,
+    pista: 'Calcula 3² + 4² = 9 + 16 = 25, y luego halla la raíz cuadrada de ese resultado.',
+    explicacion:
+      'La terna pitagórica (3, 4, 5) cumple que 3² + 4² = 9 + 16 = 25, y √25 = 5. Los antiguos constructores egipcios usaban una cuerda con 12 nudos (3 + 4 + 5) para trazar ángulos rectos.',
+  },
+  {
+    id: 'cg-mat-6',
+    categoria: 'Matemáticas y Lógica',
+    contexto:
+      'En lógica formal y pensamiento crítico, si sabemos con certeza que la proposición «Si llueve en San Gil, entonces crece el caudal del río Fonce» es verdadera:',
+    pregunta: '¿Qué podemos concluir con total rigor lógico si observamos que el caudal del río Fonce NO creció?',
+    opciones: [
+      'Que no llovió en San Gil (ley del contrarrecíproco).',
+      'Que llovió muy poco en las montañas de Barichara.',
+      'Que siempre que crece el río es porque antes llovió.',
+    ],
+    correcta: 0,
+    pista: 'Si P implica Q (P → Q), y sabemos que Q es falso (¬Q), entonces P tampoco pudo haber ocurrido (Modus Tollens).',
+    explicacion:
+      'Por la regla lógica Modus Tollens (o contrarrecíproco), si «P → Q» es verdadero y se observa «no Q», necesariamente se deduce «no P»: no llovió en San Gil.',
+  },
+  {
+    id: 'cg-mat-7',
+    categoria: 'Matemáticas y Lógica',
+    contexto:
+      'En estadística (muy evaluada en la prueba Saber 11), cuando en un grupo de 9 trabajadores ocho ganan $1.500.000 y el gerente gana $25.000.000, el promedio aritmético se distorsiona fuertemente.',
+    pregunta: '¿Qué medida de tendencia central ordena los datos de menor a mayor y toma el valor central sin alterarse por valores extremos?',
+    opciones: [
+      'La mediana, que ocupa la posición central de los datos.',
+      'La media aritmética, que divide la suma entre el total.',
+      'La varianza muestral, que eleva las distancias al cuadrado.',
+    ],
+    correcta: 0,
+    pista: 'Divide el conjunto ordenado en dos mitades con igual cantidad de elementos a cada lado.',
+    explicacion:
+      'La mediana (en este caso $1.500.000, el quinto dato ordenado) es robusta frente a valores atípicos o extremos, a diferencia del promedio o media aritmética.',
+  },
+  {
+    id: 'cg-mat-8',
+    categoria: 'Matemáticas y Lógica',
+    contexto:
+      'Se cuenta que cuando el matemático alemán Carl Friedrich Gauss era niño, su maestro pidió sumar todos los números enteros del 1 al 100 (1 + 2 + 3 + ... + 99 + 100) pensando que tardarían una hora.',
+    pregunta: '¿Qué resultado obtuvo Gauss en pocos segundos al emparejar los extremos (1+100, 2+99, 3+98...)?',
+    opciones: [
+      '5.050, al multiplicar 50 parejas que suman 101 cada una.',
+      '5.000, al multiplicar 100 términos por su mitad exacta.',
+      '4.950, al agrupar 49 parejas simétricas alrededor del 50.',
+    ],
+    correcta: 0,
+    pista: 'Hay 50 parejas de números (1+100=101, 2+99=101, ..., 50+51=101). Multiplica 50 × 101.',
+    explicacion:
+      'Gauss notó que al emparejar el primero con el último se forman 50 pares cuya suma siempre es 101: 50 × 101 = 5.050. De ahí nace la fórmula n(n+1)/2.',
+  },
+  {
+    id: 'cg-mat-9',
+    categoria: 'Matemáticas y Lógica',
+    contexto:
+      'Lanzas una moneda honesta (no trucada) al aire 4 veces seguidas y en las 4 ocasiones cae «cara». Estás a punto de realizar el quinto lanzamiento.',
+    pregunta: '¿Cuál es la probabilidad matemática real de que en el quinto lanzamiento vuelva a salir «cara»?',
+    opciones: [
+      'Exactamente 50 % (1/2), pues la moneda no tiene memoria.',
+      'Mucho menor al 50 %, porque ya toca equilibrar con sello.',
+      'Cerca del 90 %, porque la moneda lleva una racha de caras.',
+    ],
+    correcta: 0,
+    pista: 'Cada lanzamiento es un evento estadísticamente independiente de los anteriores; creer lo contrario es la «falacia del apostador».',
+    explicacion:
+      'En eventos independientes, los resultados pasados no alteran las probabilidades futuras: la probabilidad en el quinto lanzamiento sigue siendo exactamente 1/2 (50 %).',
+  },
+  {
+    id: 'cg-mat-10',
+    categoria: 'Matemáticas y Lógica',
+    contexto:
+      'Si 5 impresoras del laboratorio del colegio tardan exactamente 5 minutos en imprimir 5 cuadernillos de estudio trabajando al mismo ritmo constante:',
+    pregunta: '¿Cuánto tiempo tardarán 100 impresoras idénticas trabajando simultáneamente en imprimir 100 cuadernillos?',
+    opciones: [
+      'Exactamente 5 minutos trabajando todas al mismo tiempo.',
+      'Exactamente 100 minutos por el volumen total de hojas.',
+      'Apenas 1 minuto al dividir el trabajo entre cien máquinas.',
+    ],
+    correcta: 0,
+    pista: 'Analiza primero cuánto tarda UNA sola impresora en producir UN solo cuadernillo.',
+    explicacion:
+      'Si 5 impresoras hacen 5 cuadernillos en 5 minutos, significa que cada impresora tarda 5 minutos en hacer 1 cuadernillo. Por tanto, 100 impresoras trabajando a la vez harán 100 cuadernillos en esos mismos 5 minutos.',
   },
 
-  // --- CIENCIA Y UNIVERSO ---
+  // ==========================================================================
+  // 3. GEOGRAFÍA Y PLANETA (10 preguntas)
+  // ==========================================================================
+  {
+    id: 'cg-geo-1',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'Al entrar a territorio colombiano por el Macizo Colombiano (o Nudo de los Pastos), la gran Cordillera de los Andes se divide en tres ramales: Occidental, Central y Oriental.',
+    pregunta: '¿Qué grandes valles interandinos separan a nuestras tres cordilleras y qué ríos los recorren de sur a norte?',
+    opciones: [
+      'El valle del río Cauca y el valle del río Magdalena.',
+      'El valle del río Orinoco y la cuenca del río Amazonas.',
+      'El cañón del río Patía y la depresión del río Atrato.',
+    ],
+    correcta: 0,
+    pista: 'Uno corre entre las cordilleras Occidental y Central, y el otro entre la Central y la Oriental.',
+    explicacion:
+      'El río Cauca corre entre las cordilleras Occidental y Central, mientras que el río Magdalena fluye entre la Central y la Oriental antes de unirse en la Depresión Momposina rumbo al mar Caribe.',
+  },
+  {
+    id: 'cg-geo-2',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'Aunque el monte Everest (8.848 m) es la cumbre de mayor altitud sobre el nivel del mar, la montaña más alta de la Tierra junto al mar —y la cima más alta de Colombia— está en nuestra costa Caribe.',
+    pregunta: '¿Cómo se llama este macizo montañoso colombiano cuyos picos Bolívar y Colón alcanzan unos 5.775 metros a pocos kilómetros del mar?',
+    opciones: [
+      'La Sierra Nevada de Santa Marta en el Caribe colombiano.',
+      'El Parque Nacional Natural El Cocuy en Boyacá y Arauca.',
+      'La Serranía del Perijá en la frontera con Venezuela.',
+    ],
+    correcta: 0,
+    pista: 'Es un sistema montañoso independiente de la cordillera de los Andes y posee todos los pisos térmicos.',
+    explicacion:
+      'La Sierra Nevada de Santa Marta es la formación montañosa litoral más alta del planeta, elevándose desde las playas del mar Caribe hasta las nieves perpetuas en apenas 42 kilómetros.',
+  },
+  {
+    id: 'cg-geo-3',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'América del Sur y África tienen perfiles costeros que parecen encajar como piezas de un rompecabezas. En 1912, el geofísico alemán Alfred Wegener propuso que hace unos 250 millones de años todos los continentes formaban una sola masa.',
+    pregunta: '¿Cómo llamó Wegener a ese supercontinente primitivo y qué teoría geológica explica hoy el movimiento de la corteza terrestre?',
+    opciones: [
+      'Pangea, explicada hoy por la teoría de la tectónica de placas.',
+      'Gondwana, impulsada únicamente por las mareas gravitatorias.',
+      'Atlántida, desplazada por la rotación centrífuga del ecuador.',
+    ],
+    correcta: 0,
+    pista: 'Su nombre proviene del griego «pan» (toda) y «gea» (Tierra), y se fragmentó por corrientes de convección del manto.',
+    explicacion:
+      'Pangea fue el supercontinente que agrupó las tierras emergidas; la tectónica de placas demostró que la litosfera se divide en placas que se desplazan sobre la astenosfera.',
+  },
+  {
+    id: 'cg-geo-4',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'Existe un único mar en la Tierra que no tiene costas terrestres en absoluto: sus límites están definidos íntegramente por corrientes oceánicas del Atlántico Norte y en sus aguas flotan algas pardas.',
+    pregunta: '¿Cuál es el nombre de este singular mar oceánico donde además desovan las anguilas europeas y americanas?',
+    opciones: [
+      'El Mar de los Sargazos en el giro del Atlántico Norte.',
+      'El Mar de Bering entre las costas de Alaska y Siberia.',
+      'El Mar Rojo entre la península arábiga y el noreste africano.',
+    ],
+    correcta: 0,
+    pista: 'Está rodeado por la Corriente del Golfo, la del Atlántico Norte, la de Canarias y la Ecuatorial del Norte.',
+    explicacion:
+      'El Mar de los Sargazos es el único mar del mundo sin riberas continentales; debe su nombre a las algas del género Sargassum que forman un ecosistema flotante único.',
+  },
+  {
+    id: 'cg-geo-5',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'En el extremo occidental de Suramérica y a lo largo de Japón, Filipinas, Indonesia, Nueva Zelanda y toda la costa pacífica de América se concentra cerca del 90 % de los terremotos y el 75 % de los volcanes del planeta.',
+    pregunta: '¿Cómo se denomina geográficamente a esta extensa zona de subducción tectónica que bordea el océano más grande del mundo?',
+    opciones: [
+      'El Cinturón de Fuego del Pacífico (o Anillo de Fuego).',
+      'La Dorsal Mesoatlántica de expansión submarina.',
+      'El Gran Valle del Rift de la placa tectónica africana.',
+    ],
+    correcta: 0,
+    pista: 'Colombia forma parte de este cinturón debido al choque entre la placa de Nazca y la placa Sudamericana.',
+    explicacion:
+      'El Cinturón de Fuego del Pacífico abarca unos 40.000 km en forma de herradura donde varias placas oceánicas se hunden (subducen) bajo placas continentales, generando vulcanismo y sismicidad.',
+  },
+  {
+    id: 'cg-geo-6',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'Durante siglos se debatió cuál era el río más caudaloso y largo de la Tierra. Este coloso nace en la cordillera de los Andes, baña el trapecio amazónico colombiano en Leticia y descarga al Atlántico una quinta parte del agua dulce fluvial del mundo.',
+    pregunta: '¿De qué río se trata y qué otro gran río africano disputa históricamente el récord de longitud?',
+    opciones: [
+      'El río Amazonas en Suramérica y el río Nilo en África.',
+      'El río Orinoco en Venezuela y el río Congo en África.',
+      'El río Paraná en el Cono Sur y el río Yangtsé en Asia.',
+    ],
+    correcta: 0,
+    pista: 'El río suramericano supera los 200.000 metros cúbicos por segundo de caudal medio, más que los siguientes siete ríos juntos.',
+    explicacion:
+      'El río Amazonas es indiscutiblemente el río más caudaloso y con la mayor cuenca hidrográfica del planeta (7 millones de km²), compartiendo con el Nilo el podio de los más largos (~6.992 km vs ~6.853 km).',
+  },
+  {
+    id: 'cg-geo-7',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'Mucha gente cree que un desierto es siempre un lugar de dunas de arena abrasadora; sin embargo, en geografía y climatología un desierto se define por su bajísima precipitación anual (menos de 250 mm de lluvia al año).',
+    pregunta: 'Bajo esta definición científica, ¿cuál es el desierto más extenso de todo el planeta Tierra?',
+    opciones: [
+      'El Desierto Antártico en el polo sur, seguido por el Ártico.',
+      'El Desierto del Sahara en el norte del continente africano.',
+      'El Desierto de Atacama en la franja costera del norte de Chile.',
+    ],
+    correcta: 0,
+    pista: 'Los dos desiertos más grandes de la Tierra son desiertos polares helados; el Sahara es el mayor de los cálidos.',
+    explicacion:
+      'La Antártida (con unos 14 millones de km² y precipitaciones interiores menores a 50 mm anuales) es el desierto más grande del planeta; el Sahara (~9,2 millones de km²) es el mayor desierto cálido.',
+  },
+  {
+    id: 'cg-geo-8',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'Para localizar cualquier punto sobre la esfera terrestre y definir los husos horarios, los cartógrafos trazaron una red de líneas imaginarias: paralelos horizontales y meridianos verticales.',
+    pregunta: '¿Cuáles son las dos líneas de referencia principales (0° de latitud y 0° de longitud) y por qué país suramericano pasa la primera?',
+    opciones: [
+      'La Línea del Ecuador (que cruza Colombia) y el Meridiano de Greenwich.',
+      'El Trópico de Cáncer (que cruza Panamá) y el Meridiano de París.',
+      'El Círculo Polar Ártico y la Línea Internacional de Cambio de Fecha.',
+    ],
+    correcta: 0,
+    pista: 'El paralelo 0° atraviesa el sur de Colombia (Putumayo, Caquetá, Vaupés y Amazonas) dividiendo la Tierra en hemisferio norte y sur.',
+    explicacion:
+      'El paralelo 0° es el Ecuador terrestre (que atraviesa el sur de Colombia, Ecuador y Brasil) y el meridiano 0° es el Meridiano de Greenwich (Londres), base del Tiempo Universal Coordinado (UTC).',
+  },
+  {
+    id: 'cg-geo-9',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'A diferencia de las latitudes templadas que tienen cuatro estaciones (primavera, verano, otoño e invierno) por la inclinación del eje terrestre, en los Andes colombianos la temperatura cambia al subir o bajar de las montañas.',
+    pregunta: '¿Cómo se denomina este fenómeno geográfico de nuestras montañas y cuáles son sus franjas desde el nivel del mar hasta las cumbres?',
+    opciones: [
+      'Pisos térmicos: cálido, templado, frío, páramo y nieves perpetuas.',
+      'Zonas monzónicas: ecuatorial, tropical, subtropical y polar andina.',
+      'Corrientes convectivas: basal, fluvial, boscosa, esteparia y glaciar.',
+    ],
+    correcta: 0,
+    pista: 'San Gil (~1.114 m s. n. m.) goza de piso térmico templado, mientras que Bogotá (2.600 m) está en piso frío.',
+    explicacion:
+      'En la zona intertropical andina la temperatura disminuye unos 0,6 °C por cada 100 metros de altitud, dando origen a los pisos térmicos estudiados desde la Expedición Botánica y Caldas.',
+  },
+  {
+    id: 'cg-geo-10',
+    categoria: 'Geografía y Planeta',
+    contexto:
+      'En el Pacífico occidental, cerca de las islas Marianas, la corteza oceánica se hunde formando el abismo submarino más profundo conocido en los océanos de la Tierra.',
+    pregunta: '¿Cómo se llama esta fosa oceánica y qué profundidad aproximada alcanza su punto más hondo (el Abismo Challenger)?',
+    opciones: [
+      'La Fosa de las Marianas, con casi 11.000 metros de profundidad.',
+      'La Fosa de Puerto Rico, con cerca de 8.400 metros bajo el mar.',
+      'La Fosa de Atacama, con alrededor de 8.065 metros de hondura.',
+    ],
+    correcta: 0,
+    pista: 'Si colocáramos el monte Everest en su fondo, a su cumbre aún le faltarían más de 2 kilómetros para llegar a la superficie del agua.',
+    explicacion:
+      'La Fosa de las Marianas alcanza unos 10.994 metros de profundidad en el Abismo Challenger, donde la presión supera en más de mil veces la presión atmosférica al nivel del mar.',
+  },
+
+  // ==========================================================================
+  // 4. CIENCIA Y UNIVERSO (10 preguntas)
+  // ==========================================================================
   {
     id: 'cg-cie-1',
     categoria: 'Ciencia y Universo',
@@ -403,9 +768,9 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
       'Aunque el Sol se encuentra a unos 150 millones de kilómetros de la Tierra y la luz viaja en el vacío a casi 300.000 km por segundo, su luz no llega de forma instantánea.',
     pregunta: '¿Cuánto tiempo tarda aproximadamente un rayo de luz desde la superficie del Sol en llegar hasta nuestros ojos en la Tierra?',
     opciones: [
-      'Aproximadamente 8 minutos y 20 segundos.',
-      'Menos de 2 segundos en el vacío.',
-      'Alrededor de 24 horas completas durante la rotación terrestre.',
+      'Aproximadamente 8 minutos y 20 segundos en llegar.',
+      'Menos de 2 segundos al viajar por el vacío espacial.',
+      'Alrededor de 24 horas durante la rotación terrestre.',
     ],
     correcta: 0,
     pista: 'Divide 150.000.000 km entre 300.000 km/s: obtendrás 500 segundos.',
@@ -419,9 +784,9 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
       'En 1928, el científico escocés Alexander Fleming regresó a su laboratorio y notó que un hongo (Penicillium notatum) había contaminado accidentalmente una placa de Petri, impidiendo que crecieran las bacterias alrededor.',
     pregunta: '¿Qué revolucionario descubrimiento médico surgió de esa observación curiosa?',
     opciones: [
-      'La penicilina, el primer antibiótico médico.',
-      'La vacuna contra la rabia mediante virus atenuados.',
-      'La pasteurización térmica para eliminar bacterias en líquidos.',
+      'La penicilina, el primer antibiótico de uso médico.',
+      'La vacuna antirrábica mediante virus atenuados.',
+      'La pasteurización térmica para eliminar bacterias.',
     ],
     correcta: 0,
     pista: 'Inauguró la era de los antibióticos en la medicina moderna.',
@@ -451,17 +816,279 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
       'A menudo se dice que la Selva Amazónica es el único «pulmón del planeta», pero la mayor parte del oxígeno que se libera a la atmósfera terrestre proviene de otro ecosistema.',
     pregunta: '¿Qué organismos producen más del 50 % del oxígeno del planeta Tierra mediante la fotosíntesis?',
     opciones: [
-      'El fitoplancton marino de los océanos.',
+      'El fitoplancton marino y las cianobacterias de los océanos.',
       'Los bosques boreales de coníferas en el hemisferio norte.',
-      'Las selvas húmedas tropicales de las cuencas del Congo y Asia.',
+      'Las selvas húmedas tropicales del Congo y el sudeste asiático.',
     ],
     correcta: 0,
     pista: 'Los océanos cubren más del 70 % de la superficie de la Tierra y están llenos de vida microscópica fotosintética.',
     explicacion:
       'El fitoplancton oceánico realiza más de la mitad de la fotosíntesis global, capturando carbono y liberando la mayor proporción del oxígeno de la atmósfera.',
   },
+  {
+    id: 'cg-cie-5',
+    categoria: 'Ciencia y Universo',
+    contexto:
+      'En 1903 y 1911, una científica nacida en Varsovia (Polonia) y nacionalizada francesa hizo historia al convertirse en la primera persona en recibir dos Premios Nobel en distintas especialidades científicas.',
+    pregunta: '¿Quién fue esta extraordinaria científica y en qué dos disciplinas recibió el Premio Nobel?',
+    opciones: [
+      'Marie Curie, galardonada en Física y en Química.',
+      'Rosalind Franklin, premiada en Biología y en Física.',
+      'Ada Lovelace, distinguida en Matemáticas y en Física.',
+    ],
+    correcta: 0,
+    pista: 'Descubrió los elementos radiactivos polonio (en honor a su patria) y radio junto a Pierre Curie.',
+    explicacion:
+      'Marie Skłodowska-Curie ganó el Nobel de Física en 1903 (por sus investigaciones sobre la radiación) y el Nobel de Química en 1911 (por aislar el radio y descubrir el polonio).',
+  },
+  {
+    id: 'cg-cie-6',
+    categoria: 'Ciencia y Universo',
+    contexto:
+      'En el núcleo de cada célula humana se almacena el manual de instrucciones genéticas en una molécula con forma de doble hélice, cuya estructura fue dilucidada en 1953 gracias a las fotografías de difracción de rayos X de Rosalind Franklin y el modelo de Watson y Crick.',
+    pregunta: '¿Cuáles son las cuatro bases nitrogenadas del ADN y cómo se emparejan siempre entre sí?',
+    opciones: [
+      'Adenina con Timina (A-T) y Citosina con Guanina (C-G).',
+      'Adenina con Guanina (A-G) y Citosina con Uracilo (C-U).',
+      'Timina con Citosina (T-C) y Guanina con Uracilo (G-U).',
+    ],
+    correcta: 0,
+    pista: 'Recuerda la regla mnemotécnica clásica de biología: «Aníbal Troilo (A-T) y Carlos Gardel (C-G)».',
+    explicacion:
+      'En el ADN, la Adenina se une siempre con la Timina mediante dos puentes de hidrógeno, y la Citosina con la Guanina mediante tres puentes de hidrógeno (en el ARN la Timina es reemplazada por Uracilo).',
+  },
+  {
+    id: 'cg-cie-7',
+    categoria: 'Ciencia y Universo',
+    contexto:
+      'Cuando viajas de pie en un autobús y el conductor frena de repente, tu cuerpo tiende a seguir moviéndose hacia adelante con la velocidad que traía.',
+    pregunta: '¿Cuál de las tres leyes del movimiento de Isaac Newton explica directamente este fenómeno?',
+    opciones: [
+      'La Primera Ley de Newton o Principio de Inercia.',
+      'La Tercera Ley de Newton de Acción y Reacción.',
+      'La Ley de la Gravitación Universal de las masas.',
+    ],
+    correcta: 0,
+    pista: 'Establece que todo cuerpo persevera en su estado de reposo o movimiento rectilíneo uniforme a menos que actúe una fuerza neta sobre él.',
+    explicacion:
+      'La Primera Ley de Newton (Inercia) explica que, al frenar el autobús, las ruedas se detienen por la fricción con el asfalto, pero tu cuerpo tiende a conservar su velocidad inicial.',
+  },
+  {
+    id: 'cg-cie-8',
+    categoria: 'Ciencia y Universo',
+    contexto:
+      'Al respirar inhalamos aire para obtener oxígeno, pero el oxígeno ni siquiera es el gas más abundante de la atmósfera que rodea la Tierra.',
+    pregunta: '¿Cuál es el gas que compone aproximadamente el 78 % del aire que respiramos a diario?',
+    opciones: [
+      'El nitrógeno molecular (N₂), seguido por el oxígeno (21 %).',
+      'El oxígeno puro (O₂), seguido por el dióxido de carbono.',
+      'El vapor de agua (H₂O), seguido por el gas noble argón.',
+    ],
+    correcta: 0,
+    pista: 'Representa casi cuatro quintas partes del aire seco y es indispensable para el ciclo de las proteínas en las plantas.',
+    explicacion:
+      'La atmósfera terrestre seca está compuesta por un 78 % de nitrógeno (N₂), un 21 % de oxígeno (O₂), un 0,93 % de argón y cerca de 0,04 % de dióxido de carbono (CO₂).',
+  },
+  {
+    id: 'cg-cie-9',
+    categoria: 'Ciencia y Universo',
+    contexto:
+      'En 1958, un ingeniero electrónico e inventor colombiano creó un dispositivo médico implantable que transformó la cardiología mundial y ha salvado decenas de millones de vidas.',
+    pregunta: '¿Quién fue este científico colombiano y qué inventó junto al cirujano Rune Elmqvist?',
+    opciones: [
+      'Jorge Reynolds Pombo, creador del marcapasos cardíaco.',
+      'Salomón Hakim Dow, inventor de la válvula cerebral.',
+      'Manuel Elkin Patarroyo, autor de la vacuna sintética.',
+    ],
+    correcta: 0,
+    pista: 'Curiosamente, su segundo apellido es Pombo (descendiente de la familia de Rafael Pombo) y su invento regula los latidos del corazón con impulsos eléctricos.',
+    explicacion:
+      'El ingeniero colombiano Jorge Reynolds Pombo diseñó el primer marcapasos artificial externo con electrodos internos Exitoso, hito de la bioingeniería mundial (mientras que Salomón Hakim inventó la válvula para la hidrocefalia).',
+  },
+  {
+    id: 'cg-cie-10',
+    categoria: 'Ciencia y Universo',
+    contexto:
+      'Casi todos los líquidos de la naturaleza se contraen y se vuelven más densos al congelarse. Sin embargo, el agua (H₂O) tiene una propiedad anómala fascinante entre los 4 °C y los 0 °C.',
+    pregunta: '¿Qué ocurre con el agua al congelarse y por qué esa propiedad permite que exista vida en los lagos congelados en invierno?',
+    opciones: [
+      'Se expande y disminuye su densidad, por lo que el hielo flota y aísla el agua líquida.',
+      'Se comprime y aumenta su peso, hundiéndose al fondo para calentar las rocas.',
+      'Pierde sus átomos de oxígeno, liberando calor químico que evita la congelación.',
+    ],
+    correcta: 0,
+    pista: 'Los puentes de hidrógeno forman una red cristalina hexagonal con más espacio vacío que en el agua líquida.',
+    explicacion:
+      'Al congelarse, el agua forma una red hexagonal menos densa que el agua líquida. Por eso el hielo flota en la superficie y actúa como manto térmico aislante, permitiendo que los peces sobrevivan debajo.',
+  },
 
-  // --- HISTORIA Y MUNDO ---
+  // ==========================================================================
+  // 5. LITERATURA Y ARTE (10 preguntas)
+  // ==========================================================================
+  {
+    id: 'cg-lit-1',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'Nuestro colegio lleva con orgullo el nombre de Rafael Pombo (1833–1912), coronado en 1905 como Poeta Nacional de Colombia en el Teatro Colón de Bogotá.',
+    pregunta: 'Además de «El Renacuajo Paseador» y «La Pobre Viejecita», ¿cuál de estas obras pertenece también a la pluma de Rafael Pombo?',
+    opciones: [
+      '«Mirringa Mirronga» y el poema «Hora de tinieblas».',
+      '«La Vorágine» y la novela romántica «María».',
+      '«El coronel no tiene quien le escriba» y «Relato».',
+    ],
+    correcta: 0,
+    pista: 'Incluye una famosa gata que invita a sus amigas a cenar y uno de los poemas filosóficos más intensos del romanticismo colombiano.',
+    explicacion:
+      'Rafael Pombo no solo escribió fábulas infantiles inmortales como «Mirringa Mirronga» y «Pastorcita», sino también profunda poesía romántica y traducciones clásicas.',
+  },
+  {
+    id: 'cg-lit-2',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'En 1982, la Academia Sueca otorgó el Premio Nobel de Literatura a Gabriel García Márquez «por sus novelas e historias cortas, en las que lo fantástico y lo real se combinan en un mundo ricamente compuesto».',
+    pregunta: '¿Con qué título pronunció García Márquez su histórico discurso de aceptación del Premio Nobel en Estocolmo?',
+    opciones: [
+      '«La soledad de América Latina» ante la Academia.',
+      '«El cataclismo de Damocles y la memoria viva».',
+      '«Botella al mar para el dios de las palabras».',
+    ],
+    correcta: 0,
+    pista: 'En ese discurso reclama el derecho de nuestra región a tener «una segunda oportunidad sobre la tierra».',
+    explicacion:
+      'Su discurso «La soledad de América Latina» (diciembre de 1982) es una de las piezas oratorias más importantes del siglo XX sobre la identidad e historia de nuestro continente.',
+  },
+  {
+    id: 'cg-lit-3',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'En 1937, tras el bombardeo aéreo sobre una villa vasca durante la Guerra Civil Española, Pablo Picasso pintó un monumental lienzo en blanco, negro y escalas de gris.',
+    pregunta: '¿Cómo se titula esta obra maestra del arte del siglo XX y qué simboliza hoy en el mundo?',
+    opciones: [
+      '«Guernica», denuncia universal contra la barbarie de la guerra.',
+      '«Las Meninas», retrato barroco de la corte de Felipe IV.',
+      '«Los fusilamientos del tres de mayo», sobre la invasión en Madrid.',
+    ],
+    correcta: 0,
+    pista: 'Lleva el nombre de la población vasca bombardeada el 26 de abril de 1937.',
+    explicacion:
+      'El «Guernica» de Pablo Picasso (hoy en el Museo Reina Sofía de Madrid) utiliza el lenguaje del cubismo y el expresionismo para denunciar el horror de la guerra.',
+  },
+  {
+    id: 'cg-lit-4',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'Publicada en dos partes (1605 y 1615) por Miguel de Cervantes Saavedra, es considerada la primera novela moderna de la literatura universal.',
+    pregunta: '¿Con qué famosa frase inicia «Don Quijote de la Mancha» y cuál era el verdadero nombre del hidalgo en la novela?',
+    opciones: [
+      '«En un lugar de la Mancha...» y se llamaba Alonso Quijano.',
+      '«Muchos años después...» y se llamaba Aureliano Buendía.',
+      '«Vine a Comala porque me dijeron...» y era Juan Preciado.',
+    ],
+    correcta: 0,
+    pista: 'Alonso Quijano enloquece leyendo libros de caballerías y sale al mundo junto a Sancho Panza.',
+    explicacion:
+      'Miguel de Cervantes creó con Alonso Quijano (Don Quijote) y Sancho Panza un diálogo inmortal entre el idealismo y el sentido práctico humano.',
+  },
+  {
+    id: 'cg-lit-5',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'Publicada en 1924 por el escritor huilense José Eustasio Rivera, esta gran novela colombiana denuncia la explotación de los caucheros en las selvas del Orinoco y el Amazonas y termina con la célebre frase: «¡Los devoró la selva!».',
+    pregunta: '¿Cuál es el título de esta obra cumbre de la literatura colombiana y cómo se llama su protagonista?',
+    opciones: [
+      '«La Vorágine», protagonizada por el poeta Arturo Cova.',
+      '«María», protagonizada por el joven Efraín en el Cauca.',
+      '«La Marquesa de Yolombó», escrita por Tomás Carrasquilla.',
+    ],
+    correcta: 0,
+    pista: 'Comienza con la famosa línea: «Antes que me hubiera apasionado por mujer alguna, jugué mi corazón al azar y me lo ganó la Violencia».',
+    explicacion:
+      '«La Vorágine» (1924) de José Eustasio Rivera es una de las novelas fundacionales de la literatura latinoamericana, donde Arturo Cova y Alicia se internan en los llanos y la selva amazónica.',
+  },
+  {
+    id: 'cg-lit-6',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'Nacido en Medellín en 1932 y fallecido en 2023, este pintor y escultor colombiano alcanzó fama mundial por su estilo inconfundible de figuras monumentales y voluminosas que exploran el humor, la crítica social y la historia del arte.',
+    pregunta: '¿De qué maestro plástico colombiano hablamos y en qué museo de Bogotá donó una gran colección abierta gratuitamente al público?',
+    opciones: [
+      'Fernando Botero, creador del Museo Botero en La Candelaria.',
+      'Alejandro Obregón, autor de los murales del Salón Elíptico.',
+      'Omar Rayo, fundador del museo de arte geométrico en Roldanillo.',
+    ],
+    correcta: 0,
+    pista: 'Su estilo es conocido mundialmente como «boterismo» y sus esculturas en bronce adornan plazas desde París y Nueva York hasta Medellín.',
+    explicacion:
+      'Fernando Botero exaltó el volumen sensual y monumental en la pintura y la escultura, y en el año 2000 donó a Colombia más de 200 obras propias y de maestros internacionales.',
+  },
+  {
+    id: 'cg-lit-7',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'En la antigua Grecia se compusieron dos grandes poemas épicos atribuidos a Homero: la «Ilíada», que narra la cólera de Aquiles en el sitio de Troya, y un segundo poema sobre el largo viaje de regreso a casa de uno de los héroes griegos.',
+    pregunta: '¿Cómo se titula esa segunda epopeya homérica y qué héroe tarda diez años en volver a su isla de Ítaca?',
+    opciones: [
+      'La «Odisea», protagonizada por el ingenioso Odiseo (Ulises).',
+      'La «Eneida», protagonizada por el príncipe troyano Eneas.',
+      'La «Teogonía», escrita por el poeta beocio Hesíodo.',
+    ],
+    correcta: 0,
+    pista: 'En su viaje enfrenta al cíclope Polifemo, el canto de las sirenas y los monstruos Escila y Caribdis mientras lo esperan Penélope y Telémaco.',
+    explicacion:
+      'La «Odisea» relata el regreso de Odiseo (Ulises en la tradición latina) desde Troya hasta Ítaca, convirtiendo la palabra «odisea» en sinónimo universal de travesía llena de peripecias.',
+  },
+  {
+    id: 'cg-lit-8',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'Durante cuatro años (1508–1512), un genial escultor, pintor y arquitecto del Renacimiento italiano trabajó sobre un alto andamio para pintar al fresco más de 300 figuras bíblicas en la bóveda de una capilla del Vaticano.',
+    pregunta: '¿Quién pintó la bóveda de la Capilla Sixtina y esculpió además el famoso «David» de mármol en Florencia?',
+    opciones: [
+      'Miguel Ángel Buonarroti durante el Renacimiento italiano.',
+      'Leonardo da Vinci, autor de «La última cena» en Milán.',
+      'Rafael Sanzio, pintor del fresco «La escuela de Atenas».',
+    ],
+    correcta: 0,
+    pista: 'Entre sus escenas más célebres en el techo de la capilla está «La creación de Adán», donde dos dedos están a punto de tocarse.',
+    explicacion:
+      'Miguel Ángel Buonarroti (1475–1564) fue uno de los mayores genios del Renacimiento, autor del «David», «La Piedad» y los frescos de la Capilla Sixtina.',
+  },
+  {
+    id: 'cg-lit-9',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'En 1945, la Academia Sueca entregó por primera vez en la historia el Premio Nobel de Literatura a una persona nacida en América Latina: una poeta, diplomática y pedagoga chilena defensora de la escuela rural y la infancia.',
+    pregunta: '¿Cuál era el seudónimo literario de Lucila Godoy Alcayaga, autora de «Desolación» y «Ternura»?',
+    opciones: [
+      'Gabriela Mistral, primera Nobel de Literatura latinoamericana.',
+      'Alfonsina Storni, poeta modernista y posmodernista argentina.',
+      'Juana de Ibarbourou, conocida como «Juana de América».',
+    ],
+    correcta: 0,
+    pista: 'Se adelantó 26 años a su compatriota Pablo Neruda (quien ganó el Nobel en 1971).',
+    explicacion:
+      'Gabriela Mistral (1889–1957) abrió el camino para las letras hispanoamericanas al obtener el Premio Nobel de Literatura en 1945 y dedicó su vida a renovar la educación en América.',
+  },
+  {
+    id: 'cg-lit-10',
+    categoria: 'Literatura y Arte',
+    contexto:
+      'En 1824, en Viena, se estrenó la «Novena Sinfonía en re menor, op. 125», cuyo cuarto movimiento incorpora por primera vez un coro y solistas vocales que cantan la «Oda a la Alegría» de Friedrich Schiller. Su compositor estaba ya completamente sordo.',
+    pregunta: '¿Qué gran compositor alemán escribió la Novena Sinfonía escuchando la música únicamente en su mente?',
+    opciones: [
+      'Ludwig van Beethoven, puente entre el Clasicismo y el Romanticismo.',
+      'Wolfgang Amadeus Mozart, niño prodigio nacido en Salzburgo.',
+      'Johann Sebastian Bach, maestro del contrapunto barroco alemán.',
+    ],
+    correcta: 0,
+    pista: 'Al terminar el estreno tuvieron que girarlo hacia el público para que pudiera ver la ovación que no podía oír.',
+    explicacion:
+      'Ludwig van Beethoven (1770–1827) compuso sus obras más revolucionarias —incluida la Novena Sinfonía— tras perder el oído, demostrando la capacidad de abstracción del espíritu humano.',
+  },
+
+  // ==========================================================================
+  // 6. HISTORIA Y MUNDO (10 preguntas)
+  // ==========================================================================
   {
     id: 'cg-his-1',
     categoria: 'Historia y Mundo',
@@ -470,8 +1097,8 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
     pregunta: '¿Qué invento fue este y qué transformación histórica impulsó en Europa y el mundo?',
     opciones: [
       'La imprenta de tipos móviles, que impulsó el Renacimiento.',
-      'El telégrafo eléctrico mediante código Morse.',
-      'La máquina de vapor industrial, que mecanizó los talleres europeos.',
+      'El telégrafo eléctrico mediante el sistema de código Morse.',
+      'La máquina de vapor industrial, que mecanizó las fábricas.',
     ],
     correcta: 0,
     pista: 'Permitió combinar letras metálicas reutilizables para imprimir páginas enteras en minutos.',
@@ -486,8 +1113,8 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
     pregunta: '¿De qué acontecimiento histórico estamos hablando y con qué conflicto global se asocia?',
     opciones: [
       'La caída del Muro de Berlín al final de la Guerra Fría.',
-      'La toma de la Bastilla en París en 1789.',
-      'La firma del Tratado de Versalles tras la Primera Guerra Mundial.',
+      'La toma de la Bastilla en París durante el año 1789.',
+      'La firma del Tratado de Versalles tras la Gran Guerra.',
     ],
     correcta: 0,
     pista: 'Ocurrió en la actual capital de Alemania en noviembre de 1989.',
@@ -501,7 +1128,7 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
       'En la antigüedad clásica en Atenas y en la Biblioteca de Alejandría, los sabios sabían que la Tierra era esférica. En el siglo III a. C., un astrónomo y matemático griego midió la sombra de dos obeliscos en Siena y Alejandría al mediodía del solsticio.',
     pregunta: '¿Quién logró calcular por primera vez la circunferencia de la Tierra con asombrosa precisión usando geometría?',
     opciones: [
-      'Eratóstenes de Cirene en el siglo III a. C.',
+      'Eratóstenes de Cirene en el siglo III antes de Cristo.',
       'Claudio Ptolomeo mediante sus tablas astronómicas.',
       'Nicolás Copérnico al formular el modelo heliocéntrico.',
     ],
@@ -517,16 +1144,166 @@ export const PREGUNTAS_DESAFIO_RELAMPAGO: PreguntaDesafioRelampago[] = [
       'Tras pasar 27 años en prisión por luchar contra el régimen de segregación racial en Sudáfrica, se convirtió en el primer presidente elegido democráticamente por sufragio universal en su país en 1994 y recibió el Premio Nobel de la Paz.',
     pregunta: '¿Cómo se llamaba este líder histórico y cómo se denominaba el sistema de segregación que ayudó a desmontar?',
     opciones: [
-      'Nelson Mandela y el sistema del Apartheid.',
-      'Mahatma Gandhi y el dominio colonial británico en la India.',
-      'Martin Luther King Jr. y las leyes de segregación Jim Crow.',
+      'Nelson Mandela y el régimen sudafricano del Apartheid.',
+      'Mahatma Gandhi y el dominio colonial británico en India.',
+      'Martin Luther King Jr. y las leyes de segregación racial.',
     ],
     correcta: 0,
     pista: 'Fue conocido cariñosamente en su país por el nombre de su clan: «Madiba».',
     explicacion:
       'Nelson Mandela (1918–2013) es uno de los mayores referentes mundiales de derechos humanos, justicia transicional y superación pacífica del Apartheid en Sudáfrica.',
   },
+  {
+    id: 'cg-his-5',
+    categoria: 'Historia y Mundo',
+    contexto:
+      'En diciembre de 1793, en su imprenta patriótica de Santafé de Bogotá, un precursor de la Independencia neogranadina tradujo del francés e imprimió un documento proclamado en París en 1789, lo que le costó prisión y destierro.',
+    pregunta: '¿Quién fue este prócer neogranadino y qué histórico documento tradujo al español?',
+    opciones: [
+      'Antonio Nariño y la Declaración de los Derechos del Hombre y del Ciudadano.',
+      'Camilo Torres Tenorio y el Memorial de Agravios dirigido a la Corona.',
+      'Francisco de Paula Santander y la Constitución de la Villa del Rosario.',
+    ],
+    correcta: 0,
+    pista: 'Tradujo los 17 artículos aprobados por la Asamblea Nacional Constituyente francesa en agosto de 1789.',
+    explicacion:
+      'Antonio Nariño tradujo e imprimió en 1793 la «Declaración de los Derechos del Hombre y del Ciudadano», sembrando las ideas ilustradas de libertad e igualdad jurídica en la Nueva Granada.',
+  },
+  {
+    id: 'cg-his-6',
+    categoria: 'Historia y Mundo',
+    contexto:
+      'Hacia el año 3200 a. C., en la región situada entre los ríos Tigris y Éufrates (actual Irak), los sumerios desarrollaron el primer sistema de escritura de la humanidad grabando signos en forma de cuña sobre tablillas de arcilla fresca.',
+    pregunta: '¿Cómo se denomina a esta región histórica («tierra entre ríos») y cómo se llama su forma de escritura?',
+    opciones: [
+      'Mesopotamia y el sistema de escritura cuneiforme.',
+      'El Antiguo Egipto y la escritura jeroglífica en papiro.',
+      'La Fenicia mediterránea y el primer alfabeto fonético.',
+    ],
+    correcta: 0,
+    pista: 'En esa misma civilización se escribió el «Poema de Gilgamesh» y el «Código de Hammurabi».',
+    explicacion:
+      'Mesopotamia (en griego, «entre ríos») vio nacer las primeras ciudades-estado en Sumeria y la escritura cuneiforme, que marca el paso de la Prehistoria a la Historia.',
+  },
+  {
+    id: 'cg-his-7',
+    categoria: 'Historia y Mundo',
+    contexto:
+      'En la segunda mitad del siglo XVIII, en Gran Bretaña, la invención y mejora de la máquina de vapor por James Watt transformó la producción artesanal en producción mecanizada en fábricas, el transporte ferroviario y la vida urbana.',
+    pregunta: '¿Con qué nombre se conoce este proceso histórico y cuál fue su principal fuente de energía inicial?',
+    opciones: [
+      'La Primera Revolución Industrial, impulsada por el carbón mineral y el vapor.',
+      'La Revolución Científica Moderna, movida por la electricidad y el petróleo.',
+      'La Ilustración Europea, basada en la energía hidráulica de los molinos.',
+    ],
+    correcta: 0,
+    pista: 'Comenzó en la industria textil algodonera y la siderurgia británica alimentada por minas de hulla (carbón).',
+    explicacion:
+      'La Primera Revolución Industrial sustituyó la fuerza muscular y animal por la energía térmica del carbón aplicada a la máquina de vapor en fábricas, barcos y locomotoras.',
+  },
+  {
+    id: 'cg-his-8',
+    categoria: 'Historia y Mundo',
+    contexto:
+      'Durante la Segunda Guerra Mundial, el matemático y lógico británico Alan Turing lideró en Bletchley Park al equipo que logró descifrar los mensajes secretos de la máquina «Enigma», acortando la guerra en años.',
+    pregunta: '¿De qué disciplina moderna es considerado padre Alan Turing gracias a su concepto de «máquina universal» de 1936?',
+    opciones: [
+      'De las ciencias de la computación y la inteligencia artificial.',
+      'De la física nuclear experimental y los reactores atómicos.',
+      'De la telecomunicación satelital y las ondas de radar.',
+    ],
+    correcta: 0,
+    pista: 'El máximo galardón mundial de la informática (equivalente al Nobel de Computación) lleva hoy su apellido.',
+    explicacion:
+      'Alan Turing (1912–1954) formalizó los conceptos de algoritmo y computación con la «Máquina de Turing», sentando las bases teóricas de todos los computadores modernos.',
+  },
+  {
+    id: 'cg-his-9',
+    categoria: 'Historia y Mundo',
+    contexto:
+      'El 10 de diciembre de 1948, tras la devastación de la Segunda Guerra Mundial, la Asamblea General de las Naciones Unidas reunida en París aprobó un documento histórico de 30 artículos traducido hoy a más de 500 idiomas.',
+    pregunta: '¿Qué documento fundamental para la dignidad humana se proclamó ese día en la ONU?',
+    opciones: [
+      'La Declaración Universal de los Derechos Humanos.',
+      'El Tratado del Atlántico Norte para la defensa mutua.',
+      'El Convenio de Ginebra sobre neutralidad marítima.',
+    ],
+    correcta: 0,
+    pista: 'Su artículo 1 proclama: «Todos los seres humanos nacen libres e iguales en dignidad y derechos».',
+    explicacion:
+      'La Declaración Universal de los Derechos Humanos de 1948, impulsada por una comisión presidida por Eleanor Roosevelt, estableció por primera vez un estándar global de derechos inalienables.',
+  },
+  {
+    id: 'cg-his-10',
+    categoria: 'Historia y Mundo',
+    contexto:
+      'En Colombia, las mujeres participaron activamente en las luchas sociales e intelectuales desde la Independencia, pero durante más de un siglo no tuvieron derecho a elegir ni a ser elegidas en las urnas.',
+    pregunta: '¿En qué año se aprobó constitucionalmente el derecho al voto femenino en Colombia y en qué año votaron por primera vez?',
+    opciones: [
+      'Se aprobó en 1954 y ejercieron el voto por primera vez en el plebiscito de 1957.',
+      'Se aprobó en la Constitución de 1886 y votaron en las presidenciales de 1910.',
+      'Se aprobó en la reforma de 1936 y sufragaron por primera vez en el año 1938.',
+    ],
+    correcta: 0,
+    pista: 'Líderes como Esmeralda Arboleda, Josefina Valencia y Ofelia Uribe de Acosta lucharon décadas hasta lograr el Acto Legislativo N.º 3 de 1954.',
+    explicacion:
+      'En Colombia el sufragio femenino fue aprobado el 25 de agosto de 1954 y las mujeres acudieron por primera vez a las urnas de manera masiva el 1 de diciembre de 1957 (más de 1.800.000 mujeres votaron ese día).',
+  },
 ];
+
+function barajarArray<T>(items: T[]): T[] {
+  const copia = [...items];
+  for (let i = copia.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copia[i], copia[j]] = [copia[j], copia[i]];
+  }
+  return copia;
+}
+
+function mezclarOpcionesPregunta(p: PreguntaDesafioRelampago): PreguntaDesafioRelampago {
+  const pares = p.opciones.map((texto, idx) => ({ texto, esCorrecta: idx === p.correcta }));
+  const barajados = barajarArray(pares);
+  return {
+    ...p,
+    opciones: barajados.map((item) => item.texto),
+    correcta: barajados.findIndex((item) => item.esCorrecta),
+  };
+}
+
+export function seleccionarPreguntasDesafioSinRepetir(
+  estudiante: string,
+  categoria: 'Todas' | CategoriaCulturaGeneral,
+  cantidad = 4
+): PreguntaDesafioRelampago[] {
+  const estado = leerProgreso(estudiante);
+  const vistasSet = new Set(estado.estadisticas.preguntasCulturalesVistas || []);
+
+  const bancoFiltrado =
+    categoria === 'Todas'
+      ? PREGUNTAS_DESAFIO_RELAMPAGO
+      : PREGUNTAS_DESAFIO_RELAMPAGO.filter((p) => p.categoria === categoria);
+
+  const noVistas = barajarArray(bancoFiltrado.filter((p) => !vistasSet.has(p.id)));
+  const yaVistas = barajarArray(bancoFiltrado.filter((p) => vistasSet.has(p.id)));
+
+  let seleccionadas: PreguntaDesafioRelampago[] = [];
+
+  if (noVistas.length >= cantidad) {
+    seleccionadas = noVistas.slice(0, cantidad);
+  } else {
+    // Se toman todas las no vistas que quedan y se reinicia el ciclo de esa categoría para completar la ronda sin repetir dentro de la misma ronda
+    const faltantes = cantidad - noVistas.length;
+    const idsBancoCategoria = new Set(bancoFiltrado.map((p) => p.id));
+    idsBancoCategoria.forEach((id) => vistasSet.delete(id));
+    seleccionadas = [...noVistas, ...yaVistas.slice(0, faltantes)];
+  }
+
+  seleccionadas.forEach((p) => vistasSet.add(p.id));
+  estado.estadisticas.preguntasCulturalesVistas = Array.from(vistasSet);
+  guardarProgreso(estudiante, estado);
+
+  return seleccionadas.map(mezclarOpcionesPregunta);
+}
 
 function fechaHoyColombia(): string {
   try {
@@ -558,11 +1335,11 @@ function estadoInicial(): EstadoGamificacion {
   });
 
   return {
-    estrellas: 2, // Bienvenida inicial para motivar al estudiante
-    estrellasAcumuladas: 2,
+    estrellas: 0,
+    estrellasAcumuladas: 0,
     estrellasHoy: 0,
     metaEstrellasDiaria: 10,
-    xp: 15,
+    xp: 0,
     rachaDias: 1,
     escudosRacha: 1,
     comodinesPista: 1,
@@ -589,6 +1366,7 @@ function estadoInicial(): EstadoGamificacion {
       desafiosRelampagoGanados: 0,
       aciertosCulturalesTotales: 0,
       categoriasCulturales: {},
+      preguntasCulturalesVistas: [],
     },
     retosFecha: hoy,
     retos: retosInit,

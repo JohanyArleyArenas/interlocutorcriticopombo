@@ -126,8 +126,8 @@ function Bloques({ bloques, cuadernilloId, etiqueta, enunciado, resaltar }: { bl
             key={i}
             className={`whitespace-pre-line break-words ${
               b.nota
-                ? 'text-[13px] leading-snug text-[var(--color-secundario)]'
-                : `text-[16px] leading-relaxed text-[var(--color-texto)]${enunciado ? ' font-medium' : ''}`
+                ? 'nota-lectura-icfes text-[13px] leading-snug text-[var(--color-secundario)]'
+                : `texto-lectura-icfes text-[16px] leading-relaxed text-[var(--color-texto)]${enunciado ? ' font-medium' : ''}`
             }`}
           >
             {resaltarEspacio(b.texto, resaltar)}

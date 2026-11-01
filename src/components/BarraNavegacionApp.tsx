@@ -59,39 +59,45 @@ export const BarraInferiorMovil: React.FC<BarraInferiorMovilProps> = ({
               type="button"
               onClick={() => onCambiarSeccion(item.id)}
               aria-current={activa ? 'page' : undefined}
+              data-active={activa ? 'true' : 'false'}
               className={`group nav-tab-item relative min-h-[44px] h-full flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 sm:px-3.5 cursor-pointer focus:outline-none focus-visible:outline-none transition-colors ${
                 activa
-                  ? 'text-[var(--color-acento)]'
-                  : 'text-[var(--color-secundario)] hover:text-[var(--color-texto)] focus-visible:text-[var(--color-texto)]'
+                  ? 'text-[var(--color-nav-activo)] font-bold'
+                  : 'text-[var(--color-nav-inactivo)] font-normal hover:text-[var(--color-texto)] focus-visible:text-[var(--color-texto)]'
               }`}
             >
-              {/* Línea superior de 3px en acento cuando está activa, sin fondo de píldora */}
+              {/* Línea superior de 3px en acento de alto contraste cuando está activa, sin fondo de píldora */}
               {activa && (
                 <span
                   aria-hidden="true"
-                  className="absolute top-0 inset-x-4 sm:inset-x-2.5 h-[3px] rounded-b-full bg-[var(--color-acento)] z-10"
+                  className="absolute top-0 inset-x-3.5 sm:inset-x-2 h-[3px] rounded-b-full bg-[var(--color-nav-activo)] z-10"
                 />
               )}
 
               {/* Anillo de foco visible desplazado bajo la línea de 3px para evitar superposición */}
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute top-[6px] bottom-[4px] inset-x-1.5 sm:top-[7px] sm:bottom-[5px] sm:inset-x-1 rounded-[10px] ring-0 group-focus-visible:ring-2 group-focus-visible:ring-[var(--color-acento)] group-focus-visible:ring-offset-1 group-focus-visible:ring-offset-[var(--color-superficie)] group-focus-visible:bg-[var(--color-acento-suave)]/35 transition-all"
+                className="pointer-events-none absolute top-[6px] bottom-[4px] inset-x-1.5 sm:top-[7px] sm:bottom-[5px] sm:inset-x-1 rounded-[10px] ring-0 group-focus-visible:ring-2 group-focus-visible:ring-[var(--color-nav-activo)] group-focus-visible:ring-offset-1 group-focus-visible:ring-offset-[var(--color-superficie)] group-focus-visible:bg-[var(--color-acento-suave)]/40 transition-all"
               />
 
               <div className="relative z-10 flex items-center justify-center">
                 <Icono
-                  className={`w-[20px] h-[20px] sm:w-[18px] sm:h-[18px] transition-colors ${
-                    activa ? 'text-[var(--color-acento)]' : 'text-current'
+                  aria-hidden="true"
+                  className={`w-[20px] h-[20px] sm:w-[18px] sm:h-[18px] transition-all duration-150 ${
+                    activa
+                      ? 'text-[var(--color-nav-activo)] scale-[1.06] [stroke-width:2.6px]'
+                      : 'text-current scale-100 [stroke-width:1.65px] group-hover:[stroke-width:2px] group-focus-visible:[stroke-width:2px]'
                   }`}
-                  strokeWidth={activa ? 2.3 : 1.8}
+                  strokeWidth={activa ? 2.6 : 1.65}
                   fill={activa ? 'currentColor' : 'none'}
-                  fillOpacity={activa ? 0.22 : 0}
+                  fillOpacity={activa ? 0.18 : 0}
                 />
 
                 {mostrarPuntoRetos && (
                   <span
-                    className="sm:hidden absolute -top-1 -right-2.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[var(--color-acento)] text-[var(--color-superficie)] text-[10px] font-bold flex items-center justify-center tabular-nums"
+                    className={`sm:hidden absolute -top-1 -right-2.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[var(--color-nav-activo)] text-[var(--color-superficie)] text-[10px] font-bold flex items-center justify-center tabular-nums ${
+                      activa ? 'ring-1 ring-[var(--color-superficie)]' : ''
+                    }`}
                     aria-label={`${retosPendientes} misiones disponibles`}
                   >
                     {retosPendientes}
@@ -100,10 +106,10 @@ export const BarraInferiorMovil: React.FC<BarraInferiorMovilProps> = ({
               </div>
 
               <span
-                className={`relative z-10 text-[12px] sm:text-[14px] leading-none whitespace-nowrap transition-colors ${
+                className={`relative z-10 text-[12px] sm:text-[14px] leading-none whitespace-nowrap transition-all ${
                   activa
-                    ? 'font-bold text-[var(--color-acento)]'
-                    : 'font-normal text-current'
+                    ? 'font-bold tracking-[0.015em] text-[var(--color-nav-activo)]'
+                    : 'font-normal tracking-normal text-current group-hover:font-bold/0'
                 }`}
               >
                 {item.etiquetaCorta}
@@ -111,7 +117,7 @@ export const BarraInferiorMovil: React.FC<BarraInferiorMovilProps> = ({
 
               {mostrarPuntoRetos && (
                 <span
-                  className="relative z-10 hidden sm:inline-flex min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--color-acento)] text-[var(--color-superficie)] text-[11px] font-bold items-center justify-center tabular-nums"
+                  className="relative z-10 hidden sm:inline-flex min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--color-nav-activo)] text-[var(--color-superficie)] text-[11px] font-bold items-center justify-center tabular-nums"
                   aria-label={`${retosPendientes} misiones disponibles`}
                 >
                   {retosPendientes}

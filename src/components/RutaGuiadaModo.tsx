@@ -169,35 +169,31 @@ export const CATALOGO_RUTAS_MODO: Record<string, ConfigRutaModo> = {
     opcionesPaso2: [
       {
         id: 'desde-cero',
-        titulo: 'Aprender el tema desde cero',
-        descripcion: 'Explicación clara con ejemplos cotidianos y micro-preguntas para comprobar cada idea.',
+        titulo: 'Aprender desde cero',
+        descripcion: 'Explicación gradual con ejemplos sencillos.',
         instruccionExtra:
           'Modalidad elegida: Aprender desde cero. Explícame el concepto fundamental de forma sencilla, dame un ejemplo corto y hazme una pregunta breve antes de avanzar.',
-        recompensa: '+1 ⭐ por pregunta analítica',
       },
       {
         id: 'resolver-ejercicio',
-        titulo: 'Resolver un ejercicio paso a paso',
-        descripcion: 'Tú pones el problema y el tutor te guía con pistas sin regalarte el resultado final.',
+        titulo: 'Resolver paso a paso',
+        descripcion: 'Guía con pistas sin entregarte el resultado.',
         instruccionExtra:
           'Modalidad elegida: Resolver un ejercicio paso a paso. No me des la solución completa de una vez; pregúntame qué datos tengo y cuál creo que es el primer paso.',
-        recompensa: '+1 ⭐ por justificar tu paso',
       },
       {
         id: 'cazar-error',
-        titulo: 'Encontrar el error en mi procedimiento',
-        descripcion: 'Ideal cuando tu respuesta no coincide y quieres descubrir en qué línea estuvo el fallo.',
+        titulo: 'Revisar mi procedimiento',
+        descripcion: 'Encuentra en qué línea está el fallo.',
         instruccionExtra:
           'Modalidad elegida: Revisión de mi procedimiento. Voy a mostrarte lo que hice para que me des pistas sobre en qué paso exacto está el error de signo, despeje o concepto.',
-        recompensa: '+2 ⭐ por corregir tu propio error',
       },
       {
         id: 'metodo-profe',
-        titulo: 'Usar el método exacto de mi profe',
-        descripcion: 'Sube una foto o PDF de tu cuaderno para seguir la misma notación vista en el Liceo.',
+        titulo: 'Seguir el método de clase',
+        descripcion: 'Usa la misma notación de tu cuaderno.',
         instruccionExtra:
           'Modalidad elegida: Seguir el método de clase de mi profesor(a). Respetemos los mismos pasos, símbolos y estructura de mis apuntes.',
-        recompensa: '+2 ⭐ al cargar ejemplo de clase',
       },
     ],
     placeholderFinal: 'Escribe o pega aquí tu ejercicio, o usa uno de los botones de abajo...',
@@ -306,35 +302,31 @@ export const CATALOGO_RUTAS_MODO: Record<string, ConfigRutaModo> = {
     opcionesPaso2: [
       {
         id: 'mapa-360',
-        titulo: 'Mapa 360° (Causas, actores y consecuencias)',
-        descripcion: 'Desglosa el tema en sus raíces históricas, científicas, económicas y sociales.',
+        titulo: 'Panorama general',
+        descripcion: 'Causas, actores principales y consecuencias.',
         instruccionExtra:
           'Lente elegido: Mapa 360°. Organiza el panorama mostrando causas principales, actores involucrados y consecuencias a corto y largo plazo.',
-        recompensa: '+1 ⭐',
       },
       {
         id: 'choque-posturas',
-        titulo: 'Contrastar 2 posturas opuestas con rigor',
-        descripcion: 'Presenta los mejores argumentos y evidencias de cada lado sin caricaturizar ninguno.',
+        titulo: 'Contrastar posturas',
+        descripcion: 'Argumentos y evidencias de cada posición.',
         instruccionExtra:
           'Lente elegido: Contraste de posturas. Muéstrame las dos o tres visiones más sólidas que chocan en este tema y en qué evidencia se apoya cada una.',
-        recompensa: '+2 ⭐',
       },
       {
         id: 'aterrizaje-local',
-        titulo: 'Conectar con nuestra realidad local y escolar',
-        descripcion: 'Analiza cómo se vive o qué implica este fenómeno en nuestra región y comunidad.',
+        titulo: 'Contexto regional',
+        descripcion: 'Relación del tema con Colombia y Santander.',
         instruccionExtra:
           'Lente elegido: Conexión con el entorno. Ayúdame a pensar cómo se relaciona este tema con nuestra realidad en Colombia y Santander sin inventar datos locales no verificados.',
-        recompensa: '+2 ⭐',
       },
       {
         id: 'preguntas-investigacion',
-        titulo: 'Formular preguntas para exposición o ensayo',
-        descripcion: 'Ideal para encontrar un enfoque original antes de hacer un trabajo de clase.',
+        titulo: 'Delimitar pregunta',
+        descripcion: 'Enfoques posibles para exposición o ensayo.',
         instruccionExtra:
           'Lente elegido: Laboratorio de preguntas. Propónme 3 ángulos de investigación exigentes y ayúdame a elegir el más potente.',
-        recompensa: '+1 ⭐',
       },
     ],
     placeholderFinal: 'Escribe el tema que quieres explorar con este lente...',
@@ -419,35 +411,31 @@ export const CATALOGO_RUTAS_MODO: Record<string, ConfigRutaModo> = {
     opcionesPaso2: [
       {
         id: 'capa-tesis',
-        titulo: 'Estación 1: Fuerza de la Tesis y las Pruebas',
-        descripcion: 'Revisa si la idea central es clara y si tus razones están respaldadas con hechos.',
+        titulo: 'Tesis y pruebas',
+        descripcion: 'Claridad de la postura y respaldo argumentativo.',
         instruccionExtra:
           'Estación de revisión activa: Fuerza de la Tesis y Argumentos. Evalúa si mi postura es clara desde el inicio y dónde hay afirmaciones sin pruebas.',
-        recompensa: '+2 ⭐',
       },
       {
         id: 'capa-arquitectura',
-        titulo: 'Estación 2: Orden de Párrafos y Conectores',
-        descripcion: 'Detecta saltos bruscos entre ideas, párrafos desordenados o conectores repetidos.',
+        titulo: 'Orden y conectores',
+        descripcion: 'Hilo conductor y transiciones entre párrafos.',
         instruccionExtra:
           'Estación de revisión activa: Coherencia y Conectores. Analiza cómo fluye un párrafo hacia el siguiente y señala dónde se pierde el hilo conductor.',
-        recompensa: '+2 ⭐',
       },
       {
         id: 'capa-estilo',
-        titulo: 'Estación 3: Claridad, Precisión y Ortografía',
-        descripcion: 'Identifica frases confusas, muletillas, errores de puntuación y precisión léxica.',
+        titulo: 'Claridad y ortografía',
+        descripcion: 'Precisión léxica, puntuación y gramática.',
         instruccionExtra:
           'Estación de revisión activa: Precisión y Estilo. Señálame oraciones ambiguas, redundancias o errores de puntuación explicándome la regla para que yo mismo las corrija.',
-        recompensa: '+1 ⭐',
       },
       {
         id: 'capa-integral',
-        titulo: 'Diagnóstico Completo en 3 Capas',
-        descripcion: 'Recibe un mapa completo: 1) Lo más sólido, 2) Puntos débiles de fondo y 3) Forma.',
+        titulo: 'Revisión completa',
+        descripcion: 'Balance general de estructura, fondo y forma.',
         instruccionExtra:
           'Estación de revisión activa: Diagnóstico Integral en 3 Capas (Fortalezas, Argumentación/Estructura y Claridad/Precisión), sin reescribir el texto por mí.',
-        recompensa: '+2 ⭐',
       },
     ],
     placeholderFinal: 'Pega aquí tu borrador o sube el archivo con el botón de abajo...',
@@ -463,90 +451,55 @@ export const CATALOGO_RUTAS_MODO: Record<string, ConfigRutaModo> = {
     opcionesPaso1: [
       {
         id: 'viral-redes',
-        titulo: 'Noticia viral, cadena o publicación de redes',
-        subtitulo: 'Titulares alarmistas, capturas sin fecha o afirmaciones virales',
+        titulo: 'Noticia o cadena viral',
+        subtitulo: 'Titulares de redes, capturas o afirmaciones virales',
         icono: 'search',
         promptFragmento: 'Objeto de verificación: Afirmación viral o noticia de redes sociales.',
-        temasSugeridos: [
-          {
-            id: 'ver-cadena',
-            label: 'Probar con un titular viral o captura que circula en redes',
-            promptCompleto:
-              'Quiero verificar una afirmación viral que vi en redes sociales. Ayúdame a separar qué elementos son comprobables, qué fuentes oficiales deberíamos consultar y si hay señales de desinformación.',
-          },
-        ],
       },
       {
         id: 'cita-ia',
-        titulo: 'Dato, cita o fuente que me dio una IA',
-        subtitulo: 'Detectar libros inventados, fechas cruzadas o citas apócrifas',
+        titulo: 'Dato o fuente de una IA',
+        subtitulo: 'Detectar libros, fechas o referencias inventadas',
         icono: 'shield',
         promptFragmento: 'Objeto de verificación: Respuesta, cita o referencia generada por una IA.',
-        temasSugeridos: [
-          {
-            id: 'ver-ia-cita',
-            label: 'Comprobar si un autor, libro, artículo o fecha citada realmente existe',
-            promptCompleto:
-              'Una inteligencia artificial me dio un dato y una cita bibliográfica. Vamos a verificar en tiempo real si la obra, el autor y la fecha existen exactamente así o si es una alucinación.',
-          },
-        ],
       },
       {
         id: 'cifra-ciencia',
-        titulo: 'Estadística, porcentaje o afirmación científica',
-        subtitulo: 'Datos del DANE, estudios médicos, gráficas o afirmaciones de salud',
+        titulo: 'Cifra o dato científico',
+        subtitulo: 'Estadísticas, porcentajes o estudios de salud',
         icono: 'atom',
         promptFragmento: 'Objeto de verificación: Estadística o afirmación científica.',
-        temasSugeridos: [
-          {
-            id: 'ver-correlacion',
-            label: 'Revisar si una cifra tiene fuente primaria o confunde correlación con causa',
-            promptCompleto:
-              'Quiero verificar una estadística o afirmación científica. Busquemos de qué institución o estudio proviene originalmente y si la conclusión está bien respaldada por los datos.',
-          },
-        ],
       },
       {
         id: 'historia-norma',
-        titulo: 'Hecho histórico, geográfico o ley colombiana',
-        subtitulo: 'Fechas, artículos constitucionales, historia regional o nacional',
+        titulo: 'Dato histórico o legal',
+        subtitulo: 'Fechas, normas constitucionales o historia regional',
         icono: 'scale',
         promptFragmento: 'Objeto de verificación: Hecho histórico, dato geográfico o norma de Colombia.',
-        temasSugeridos: [
-          {
-            id: 'ver-historia',
-            label: 'Contrastar un dato histórico o normativo de Colombia con fuentes documentales',
-            promptCompleto:
-              'Necesito verificar con precisión documental un dato histórico o normativo de Colombia. Contrasta lo que dicen las fuentes verificables y señálame cualquier imprecisión.',
-          },
-        ],
       },
     ],
     tituloPaso2: '2. ¿Qué prueba de contraste quieres aplicar?',
     opcionesPaso2: [
       {
         id: 'rastreo-fuentes',
-        titulo: 'Rastreo de fuente primaria en Google',
-        descripcion: 'Busca de dónde salió originalmente el dato y qué instituciones serias lo respaldan.',
+        titulo: 'Rastrear fuente original',
+        descripcion: 'Identifica de dónde proviene el dato.',
         instruccionExtra:
           'Protocolo activo: Rastreo de fuente primaria. Usa la búsqueda web para identificar la fuente original, su fecha y su nivel de confiabilidad.',
-        recompensa: '+2 ⭐',
       },
       {
         id: 'hechos-vs-opinion',
-        titulo: 'Separador de Hechos vs. Opiniones y Sesgos',
-        descripcion: 'Desarma el texto en: 1) Lo probado, 2) Lo dudoso y 3) Adjetivos o juicios de valor.',
+        titulo: 'Separar hechos y opiniones',
+        descripcion: 'Distingue lo probado de los juicios de valor.',
         instruccionExtra:
           'Protocolo activo: Separar hechos verificables de opiniones o lenguaje emocional. Clasifica cada parte con rigor.',
-        recompensa: '+2 ⭐',
       },
       {
         id: 'contexto-omitido',
-        titulo: 'Detector de Contexto Omitido o Cifras Engañosas',
-        descripcion: 'Revisa si un dato real está siendo usado fuera de contexto para inducir a error.',
+        titulo: 'Revisar contexto omitido',
+        descripcion: 'Analiza si falta información clave de comparación.',
         instruccionExtra:
           'Protocolo activo: Análisis de contexto omitido. Revisa qué datos de comparación faltan para entender la cifra o noticia de forma completa.',
-        recompensa: '+3 ⭐',
       },
     ],
     placeholderFinal: 'Pega aquí el dato, titular, enlace o respuesta que quieres verificar...',
@@ -562,88 +515,48 @@ export const CATALOGO_RUTAS_MODO: Record<string, ConfigRutaModo> = {
     opcionesPaso1: [
       {
         id: 'mision-alucinacion',
-        titulo: 'Misión 1: Cazar alucinaciones y datos inventados',
-        subtitulo: 'Pon a prueba si la IA inventa detalles locales, fechas o documentos que no existen',
+        titulo: 'Datos y referencias',
+        subtitulo: 'Detectar fechas, citas o hechos inventados',
         icono: 'shield',
         promptFragmento: 'Misión de auditoría: Detección de alucinaciones y precisión factual.',
-        temasSugeridos: [
-          {
-            id: 'aud-reto-local',
-            label: 'Reto: Generar un párrafo con 2 verdades y 1 error sutil para que yo lo cace',
-            promptCompleto:
-              'Escribe un párrafo de nivel 11° sobre historia o ciencia en Colombia que contenga dos datos completamente ciertos y un error histórico o conceptual sutil pero importante. No me digas cuál es el error: déjame auditar tu texto y encontrarlo.',
-          },
-          {
-            id: 'aud-citas',
-            label: 'Reto: Auditar cómo responde la IA cuando le pido un dato muy específico',
-            promptCompleto:
-              'Explícame qué límites tienes para verificar datos hiperlocales o documentos internos de un municipio o colegio, y ponme una prueba práctica para aprender a detectar cuándo una IA está rellenando vacíos con suposiciones.',
-          },
-        ],
       },
       {
         id: 'mision-sesgos',
-        titulo: 'Misión 2: Detectar sesgos y miradas omitidas',
-        subtitulo: 'Descubre qué actores, regiones o puntos de vista suele dejar por fuera una respuesta',
+        titulo: 'Sesgos y omisiones',
+        subtitulo: 'Identificar perspectivas o actores ausentes',
         icono: 'eye',
         promptFragmento: 'Misión de auditoría: Análisis de sesgos de representación y encuadre.',
-        temasSugeridos: [
-          {
-            id: 'aud-sesgo-tema',
-            label: 'Reto: Analizar un tema polémico y descubrir qué perspectiva quedó invisible',
-            promptCompleto:
-              'Dame una respuesta estándar de 10 líneas sobre el impacto de la automatización tecnológica en América Latina. Luego pídeleme que te audite señalando qué sectores sociales o económicos quedaron por fuera de tu explicación.',
-          },
-        ],
       },
       {
         id: 'mision-trampa-logica',
-        titulo: 'Misión 3: Trampa lógica o falacia oculta',
-        subtitulo: 'Encuentra dónde un razonamiento que suena elegante tiene un salto lógico falso',
+        titulo: 'Saltos lógicos',
+        subtitulo: 'Encontrar falacias o conclusiones apresuradas',
         icono: 'scale',
         promptFragmento: 'Misión de auditoría: Caza de falacias y saltos lógicos.',
-        temasSugeridos: [
-          {
-            id: 'aud-falacia',
-            label: 'Reto: Escribe un argumento muy convincente que esconda una falacia lógica',
-            promptCompleto:
-              'Redacta un argumento aparentemente muy académico y convincente sobre educación o tecnología, pero incluye adentro una falacia lógica camuflada (como falsa causalidad o falso dilema). Yo debo descubrir en qué frase exacta está la trampa.',
-          },
-        ],
       },
       {
         id: 'mision-externa',
-        titulo: 'Misión 4: Auditar texto traído de otra IA',
-        subtitulo: 'Pega aquí una respuesta de ChatGPT, Gemini o Copilot para diseccionarla juntos',
+        titulo: 'Texto de otra IA',
+        subtitulo: 'Revisar una respuesta copiada de otro modelo',
         icono: 'file',
         promptFragmento: 'Misión de auditoría: Inspección crítica de un texto generado por otra IA.',
-        temasSugeridos: [
-          {
-            id: 'aud-pegar-ia',
-            label: 'Quiero pegar una respuesta de otra IA para hacerle una radiografía crítica',
-            promptCompleto:
-              'Voy a pegarte una respuesta que me dio otra IA para un trabajo escolar. Ayúdame a auditarla: 1) ¿Qué afirmaciones requieren verificación urgente?, 2) ¿Qué suena genérico o superficial?, y 3) ¿Qué preguntas críticas le faltó responder?',
-          },
-        ],
       },
     ],
     tituloPaso2: '2. ¿Cómo quieres realizar la auditoría?',
     opcionesPaso2: [
       {
         id: 'modo-cazador',
-        titulo: 'Modo Cazador (La IA me pone el reto oculto)',
-        descripcion: 'La IA redacta un texto de prueba con un fallo camuflado y tú ganas estrellas al descubrirlo.',
+        titulo: 'Texto de prueba',
+        descripcion: 'Encuentra el error oculto en un ejemplo.',
         instruccionExtra:
           'Dinámica elegida: Modo Cazador. Preséntame el texto de prueba sin revelar dónde está el fallo para que yo lo audite.',
-        recompensa: '+3 ⭐ al cazar el fallo',
       },
       {
         id: 'modo-forense',
-        titulo: 'Modo Forense (Yo pego un texto y lo diseccionamos)',
-        descripcion: 'Ideal cuando ya tienes un texto o respuesta y quieres pasarle el escáner de rigor.',
+        titulo: 'Analizar mi texto',
+        descripcion: 'Pega una respuesta para revisarla paso a paso.',
         instruccionExtra:
           'Dinámica elegida: Modo Forense. Analicemos el texto buscando imprecisiones, generalizaciones sin pruebas y sesgos.',
-        recompensa: '+2 ⭐',
       },
     ],
     placeholderFinal: 'Pega aquí la respuesta de IA a auditar o lanza uno de los retos con un clic...',
@@ -659,71 +572,39 @@ export const CATALOGO_RUTAS_MODO: Record<string, ConfigRutaModo> = {
     opcionesPaso1: [
       {
         id: 'creencia-comun',
-        titulo: 'Cuestionar una idea que todos repiten',
-        subtitulo: 'Examinar frases hechas sobre el éxito, la tecnología, la justicia o la educación',
+        titulo: 'Idea cotidiana',
+        subtitulo: 'Examinar frases comunes sobre tecnología, mérito o justicia',
         icono: 'message',
         promptFragmento: 'Enfoque socrático: Cuestionar una creencia común.',
-        temasSugeridos: [
-          {
-            id: 'soc-neutralidad',
-            label: '«La tecnología no es buena ni mala, todo depende de cómo se use»',
-            promptCompleto:
-              'Quiero examinar socráticamente la frase: «La tecnología es neutral, todo depende de quién la use». Hazme una primera pregunta incisiva para poner a prueba si eso es siempre cierto.',
-          },
-          {
-            id: 'soc-merito',
-            label: '«El que quiere siempre puede, sin importar sus circunstancias»',
-            promptCompleto:
-              'Pongamos a prueba con diálogo socrático la idea de que el éxito depende únicamente del esfuerzo individual.',
-          },
-        ],
       },
       {
         id: 'dilema-etico',
-        titulo: 'Analizar un dilema ético o ciudadano',
-        subtitulo: 'Cuando dos valores importantes chocan (libertad vs. seguridad, progreso vs. ambiente)',
+        titulo: 'Dilema ético',
+        subtitulo: 'Analizar casos donde dos valores entran en tensión',
         icono: 'scale',
         promptFragmento: 'Enfoque socrático: Dilema ético o ciudadano.',
-        temasSugeridos: [
-          {
-            id: 'soc-privacidad',
-            label: '¿Vale la pena ceder nuestra privacidad digital a cambio de mayor seguridad?',
-            promptCompleto:
-              'Quiero explorar mediante diálogo socrático el dilema entre privacidad ciudadana y vigilancia tecnológica por seguridad.',
-          },
-        ],
       },
       {
         id: 'definir-concepto',
-        titulo: 'Construir un concepto desde la raíz',
-        subtitulo: '¿Qué es realmente la justicia, la verdad, la belleza o la inteligencia?',
+        titulo: 'Concepto clave',
+        subtitulo: 'Definir con precisión qué es verdad, justicia o pensamiento',
         icono: 'lightbulb',
         promptFragmento: 'Enfoque socrático: Definición rigurosa de un concepto.',
-        temasSugeridos: [
-          {
-            id: 'soc-pensar',
-            label: '¿Pensar es lo mismo que procesar información como hace una máquina?',
-            promptCompleto:
-              'Dialoguemos socráticamente sobre qué diferencia el pensamiento humano consciente del procesamiento estadístico de una IA.',
-          },
-        ],
       },
     ],
     tituloPaso2: '2. Elige la intensidad del cuestionamiento',
     opcionesPaso2: [
       {
         id: 'socratico-gradual',
-        titulo: 'Paso a paso (Con ejemplos cercanos)',
-        descripcion: 'Preguntas breves conectadas con situaciones cotidianas para aclarar tu postura.',
+        titulo: 'Gradual',
+        descripcion: 'Preguntas breves con ejemplos cercanos.',
         instruccionExtra: 'Intensidad: Gradual y cercana, usando ejemplos cotidianos.',
-        recompensa: '+1 ⭐',
       },
       {
         id: 'socratico-retador',
-        titulo: 'Retador (Contraejemplos y paradojas)',
-        descripcion: 'Pone tus definiciones contra las cuerdas usando casos límite y paradojas clásicas.',
+        titulo: 'Exigente',
+        descripcion: 'Contraejemplos y casos límite.',
         instruccionExtra: 'Intensidad: Retadora, usando contraejemplos exigentes y casos límite.',
-        recompensa: '+2 ⭐',
       },
     ],
     placeholderFinal: 'Escribe la idea o pregunta con la que quieres abrir el diálogo...',
@@ -739,72 +620,45 @@ export const CATALOGO_RUTAS_MODO: Record<string, ConfigRutaModo> = {
     opcionesPaso1: [
       {
         id: 'arg-escolar',
-        titulo: 'Vida escolar y educación',
-        subtitulo: 'Uso de celulares, evaluaciones, tareas, IA en el colegio y convivencia',
+        titulo: 'Ámbito escolar',
+        subtitulo: 'Educación, tecnología en el aula y convivencia',
         icono: 'book',
         promptFragmento: 'Terreno del debate: Educación y vida escolar.',
-        temasSugeridos: [
-          {
-            id: 'arg-celulares',
-            label: 'Mi postura sobre la regulación de celulares o IA en el salón de clase',
-            promptCompleto:
-              'Quiero defender mi postura sobre cómo debería regularse el uso de celulares e inteligencia artificial en las clases del colegio. Primero pregúntame cuál es mi tesis y mi razón principal.',
-          },
-        ],
       },
       {
         id: 'arg-sociedad',
-        titulo: 'Sociedad, economía y Colombia',
-        subtitulo: 'Debates ciudadanos, medio ambiente, redes sociales y políticas públicas',
+        titulo: 'Sociedad y ciudadanía',
+        subtitulo: 'Debates públicos, ambiente y contexto colombiano',
         icono: 'compass',
         promptFragmento: 'Terreno del debate: Sociedad y contexto ciudadano.',
-        temasSugeridos: [
-          {
-            id: 'arg-redes-menores',
-            label: '¿Debería limitarse por ley el acceso a redes sociales por edad?',
-            promptCompleto:
-              'Voy a defender una postura sobre si debería regularse por ley el uso de redes sociales en adolescentes. Pídeme mi argumento inicial para ponerlo a prueba.',
-          },
-        ],
       },
       {
         id: 'arg-ensayo',
-        titulo: 'Blindar la tesis de mi ensayo o debate de clase',
-        subtitulo: 'Entrena antes de una exposición o mesa redonda anticipando las preguntas difíciles',
+        titulo: 'Tesis de ensayo o debate',
+        subtitulo: 'Preparar una postura antes de redactar o exponer',
         icono: 'target',
         promptFragmento: 'Terreno del debate: Preparación para mesa redonda o ensayo.',
-        temasSugeridos: [
-          {
-            id: 'arg-blindaje',
-            label: 'Tengo una tesis para una exposición y quiero que me lances las 2 objeciones más duras',
-            promptCompleto:
-              'Estoy preparando una exposición o debate para clase. Te voy a escribir mi tesis y mis argumentos para que actúes como el jurado más exigente y me ayudes a blindar mis puntos débiles.',
-          },
-        ],
       },
     ],
     tituloPaso2: '2. ¿Qué rol quieres que asuma el Interlocutor?',
     opcionesPaso2: [
       {
         id: 'rol-entrenador',
-        titulo: 'Entrenador de blindaje',
-        descripcion: 'Señala qué parte de tu argumento es vulnerable y te sugiere cómo reforzarlo con pruebas.',
+        titulo: 'Reforzar pruebas',
+        descripcion: 'Señala puntos débiles y cómo sustentarlos mejor.',
         instruccionExtra: 'Rol elegido: Entrenador de blindaje argumentativo.',
-        recompensa: '+1 ⭐',
       },
       {
         id: 'rol-abogado-diablo',
-        titulo: 'Abogado del diablo exigente',
-        descripcion: 'Defiende con rigor la postura contraria para obligarte a mejorar tus evidencias.',
+        titulo: 'Postura contraria',
+        descripcion: 'Plantea objeciones sólidas para probar tu tesis.',
         instruccionExtra: 'Rol elegido: Abogado del diablo con contraejemplos exigentes.',
-        recompensa: '+2 ⭐',
       },
       {
         id: 'rol-caza-falacias',
-        titulo: 'Juez detector de falacias',
-        descripcion: 'Examina si en tu argumento hay generalizaciones apresuradas o saltos sin evidencia.',
+        titulo: 'Revisión lógica',
+        descripcion: 'Detecta generalizaciones o saltos sin evidencia.',
         instruccionExtra: 'Rol elegido: Juez detector de falacias y rigor probatorio.',
-        recompensa: '+2 ⭐',
       },
     ],
     placeholderFinal: 'Escribe aquí tu postura y la razón principal con la que la defiendes...',
@@ -901,57 +755,28 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
 
   return (
     <div
-      style={{ animationDelay: '460ms' }}
-      className="anim-tarjeta mt-4 rounded-[14px] border border-[var(--color-separador)] bg-[var(--color-fondo)] p-4 sm:p-5 flex flex-col gap-4"
+      style={{ animationDelay: '380ms' }}
+      className="anim-tarjeta mt-4 rounded-[14px] border border-[var(--color-separador)] bg-[var(--color-fondo)] p-4 flex flex-col gap-3.5"
     >
-      {/* Cabecera de la Ruta Guiada con indicador de pasos */}
-      <div
-        style={{ animationDelay: '510ms' }}
-        className="anim-entrada flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[var(--color-separador)]"
-      >
-        <div>
-          <div className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--color-acento)]">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{config.insignia}</span>
-          </div>
-          <h3 className="font-literata text-[18px] font-semibold text-[var(--color-texto)] mt-0.5 leading-snug">
-            {config.tituloRuta}
-          </h3>
-          <p className="text-[14px] text-[var(--color-secundario)] leading-snug mt-0.5">
-            {config.subtituloRuta}
-          </p>
-        </div>
-
-        <span className="self-start sm:self-center text-[13px] font-bold px-3 py-1 rounded-full bg-[var(--color-oro)]/15 text-[var(--color-oro)] shrink-0">
-          {config.recompensaTexto.replace(/⭐/g, 'estrellas')}
+      {/* PASO 1: Área / Materia / Tipo de Texto / Misión */}
+      <div>
+        <span className="block text-[13.5px] font-semibold text-[var(--color-texto)] mb-2">
+          {config.tituloPaso1}
         </span>
-      </div>
 
-      {/* PASO 1: Botones de Área / Materia / Tipo de Texto / Misión */}
-      <div style={{ animationDelay: '560ms' }} className="anim-entrada">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-[14px] font-bold text-[var(--color-texto)]">
-            {config.tituloPaso1}
-          </span>
-          <span className="text-[13px] text-[var(--color-secundario)]">
-            Elige una opción
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          {config.opcionesPaso1.map((op, idxOp1) => {
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {config.opcionesPaso1.map((op) => {
             const activo = op.id === opcion1Actual?.id;
             const IconoOp = ICONO_MAPA[op.icono || 'sparkles'] || Sparkles;
             return (
               <button
                 key={op.id}
                 type="button"
-                style={{ animationDelay: `${580 + idxOp1 * 55}ms` }}
                 onClick={() => {
                   setPaso1Id(op.id);
                   setTemaElegidoId('');
                 }}
-                className={`anim-tarjeta text-left p-3 rounded-[14px] border transition-all flex flex-col justify-between gap-1.5 min-h-[78px] ${
+                className={`text-left p-2.5 rounded-[12px] border transition-colors flex flex-col justify-between gap-1 ${
                   activo
                     ? 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]'
                     : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]'
@@ -960,21 +785,21 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
                 <div className="flex items-center justify-between gap-2 w-full">
                   <div className="inline-flex items-center gap-2 min-w-0">
                     <div
-                      className={`w-7 h-7 rounded-[10px] flex items-center justify-center shrink-0 ${
+                      className={`w-6 h-6 rounded-[8px] flex items-center justify-center shrink-0 ${
                         activo
                           ? 'bg-[var(--color-acento)] text-[#FBFCFA]'
                           : 'bg-[var(--color-fondo)] text-[var(--color-acento)]'
                       }`}
                     >
-                      <IconoOp className="w-4 h-4" />
+                      <IconoOp className="w-3.5 h-3.5" />
                     </div>
-                    <span className="font-literata text-[14.5px] font-semibold text-[var(--color-texto)] leading-tight">
+                    <span className="font-literata text-[14px] font-semibold text-[var(--color-texto)] leading-tight">
                       {op.titulo}
                     </span>
                   </div>
                   {activo && <CheckCircle2 className="w-4 h-4 text-[var(--color-acento)] shrink-0" />}
                 </div>
-                <p className="text-[13px] text-[var(--color-secundario)] leading-snug">
+                <p className="text-[12.5px] text-[var(--color-secundario)] leading-snug line-clamp-2">
                   {op.subtitulo}
                 </p>
               </button>
@@ -983,46 +808,31 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
         </div>
       </div>
 
-      {/* PASO 2: Botones de Enfoque / Estación de Revisión / Método */}
-      <div style={{ animationDelay: '650ms' }} className="anim-entrada">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-[14px] font-bold text-[var(--color-texto)]">
-            {config.tituloPaso2}
-          </span>
-          {opcion2Actual?.recompensa && (
-            <span className="text-[13px] font-bold text-[var(--color-oro)]">
-              Recompensa: {opcion2Actual.recompensa.replace(/⭐/g, 'estrellas')}
-            </span>
-          )}
-        </div>
+      {/* PASO 2: Enfoque / Estación de Revisión / Método */}
+      <div>
+        <span className="block text-[13.5px] font-semibold text-[var(--color-texto)] mb-2">
+          {config.tituloPaso2}
+        </span>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {config.opcionesPaso2.map((op2, idxOp2) => {
+          {config.opcionesPaso2.map((op2) => {
             const activo = op2.id === opcion2Actual?.id;
             return (
               <button
                 key={op2.id}
                 type="button"
-                style={{ animationDelay: `${670 + idxOp2 * 55}ms` }}
                 onClick={() => setPaso2Id(op2.id)}
-                className={`anim-tarjeta text-left px-3.5 py-2.5 rounded-[14px] border transition-colors flex items-start justify-between gap-2 ${
+                className={`text-left px-3 py-2 rounded-[12px] border transition-colors flex items-start justify-between gap-2 ${
                   activo
                     ? 'border-[var(--color-acento)] bg-[var(--color-acento-suave)]'
                     : 'border-[var(--color-separador)] bg-[var(--color-superficie)] hover:border-[var(--color-acento)]'
                 }`}
               >
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[14px] font-bold text-[var(--color-texto)] leading-snug">
-                      {op2.titulo}
-                    </span>
-                    {op2.recompensa && (
-                      <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-oro)]/15 text-[var(--color-oro)]">
-                        {op2.recompensa.replace(/⭐/g, 'estrellas')}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[13px] text-[var(--color-secundario)] leading-snug mt-0.5">
+                  <span className="text-[13.5px] font-semibold text-[var(--color-texto)] leading-snug block">
+                    {op2.titulo}
+                  </span>
+                  <p className="text-[12.5px] text-[var(--color-secundario)] leading-snug mt-0.5">
                     {op2.descripcion}
                   </p>
                 </div>
@@ -1041,81 +851,35 @@ export const RutaGuiadaModo: React.FC<RutaGuiadaModoProps> = ({
         </div>
       </div>
 
-      {/* Barra de acciones directas según el modo */}
-      <div
-        style={{ animationDelay: '730ms' }}
-        className="anim-entrada pt-2 border-t border-[var(--color-separador)] flex flex-wrap items-center justify-between gap-2"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onPrepararPrompt(construirPromptCombinado(temaActual))}
-            className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[14px] font-bold hover:opacity-90 transition-opacity sombra-boton-acento"
-          >
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>Usar esta combinación en mi mensaje</span>
-          </button>
-
-          {permiteAdjuntos && onSubirArchivo && (
-            <button
-              type="button"
-              onClick={() => {
-                onPrepararPrompt(construirPromptCombinado(temaActual));
-                onSubirArchivo();
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full border border-[var(--color-acento)] bg-[var(--color-superficie)] text-[var(--color-acento)] text-[14px] font-bold hover:bg-[var(--color-acento-suave)] transition-colors"
-            >
-              <Upload className="w-4 h-4 shrink-0" />
-              <span>
-                {modeKey === 'tutor'
-                  ? 'Subir foto o PDF de mi ejercicio'
-                  : modeKey === 'escrito'
-                  ? 'Subir mi borrador (+2 estrellas)'
-                  : 'Adjuntar archivo para revisar'}
-              </span>
-            </button>
-          )}
-
-          {modeKey === 'tutor' && onSubirEjemploClase && (
-            <button
-              type="button"
-              onClick={onSubirEjemploClase}
-              className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[var(--color-texto)] text-[14px] font-bold hover:border-[var(--color-acento)] transition-colors"
-            >
-              <BookOpen className="w-4 h-4 text-[var(--color-acento)] shrink-0" />
-              <span>
-                {ejemplosClaseCount > 0
-                  ? `Apuntes de clase (${ejemplosClaseCount}), agregar otro`
-                  : 'Subir apuntes del profesor (+2 estrellas)'}
-              </span>
-            </button>
-          )}
-
-          {(modeKey === 'verificar' || modeKey === 'auditar') && onAbrirVerificacionExterna && (
-            <button
-              type="button"
-              onClick={onAbrirVerificacionExterna}
-              className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full border border-[var(--color-oro)] bg-[var(--color-oro)]/12 text-[var(--color-oro)] text-[14px] font-bold hover:bg-[var(--color-oro)]/20 transition-colors"
-            >
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Registrar lo verificado por fuera (+3 estrellas)</span>
-            </button>
-          )}
-        </div>
-
+      {/* Barra compacta de acción */}
+      <div className="pt-2 border-t border-[var(--color-separador)] flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => {
-            setPaso1Id(config.opcionesPaso1[0]?.id || '');
-            setPaso2Id(config.opcionesPaso2[0]?.id || '');
-            setTemaElegidoId('');
-          }}
-          className="inline-flex items-center gap-1 min-h-[40px] text-[13px] text-[var(--color-secundario)] hover:text-[var(--color-texto)] px-2 py-1"
-          title="Reiniciar selección de pasos"
+          onClick={() => onPrepararPrompt(construirPromptCombinado(temaActual))}
+          className="inline-flex items-center gap-1.5 px-4 py-1.5 min-h-[38px] rounded-full bg-[var(--color-acento)] text-[#FBFCFA] text-[13.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer sombra-boton-acento"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reiniciar pasos</span>
+          <span>Usar en mi mensaje</span>
         </button>
+
+        {permiteAdjuntos && onSubirArchivo && (
+          <button
+            type="button"
+            onClick={() => {
+              onPrepararPrompt(construirPromptCombinado(temaActual));
+              onSubirArchivo();
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 min-h-[38px] rounded-full border border-[var(--color-separador)] bg-[var(--color-superficie)] text-[var(--color-texto)] text-[13.5px] font-medium hover:border-[var(--color-acento)] transition-colors cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5 text-[var(--color-acento)] shrink-0" />
+            <span>
+              {modeKey === 'tutor'
+                ? 'Subir ejercicio'
+                : modeKey === 'escrito'
+                ? 'Subir borrador'
+                : 'Adjuntar archivo'}
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

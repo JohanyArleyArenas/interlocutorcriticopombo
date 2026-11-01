@@ -19,15 +19,20 @@ const PORT = Number(process.env.PORT) || 3000;
 app.set('trust proxy', true);
 app.use(express.json({ limit: '50mb' }));
 
-// Shared Gemini AI instance on the server side
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+function obtenerLlaveIA(): string {
+  return (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+}
+
+function obtenerClienteIA(): GoogleGenAI {
+  return new GoogleGenAI({
+    apiKey: obtenerLlaveIA(),
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
     },
-  },
-});
+  });
+}
 
 export interface ChatArchivo {
   nombre: string;
@@ -83,9 +88,9 @@ function registrarInteraccion(fila: Record<string, unknown>) {
     .catch((err) => console.log('[Registro] No se pudo guardar la interacción:', err?.message));
 }
 
-// Modelos del plan pago: Flash con MEDIUM o LOW según la tarea y Flash Lite para pistas rápidas y como respaldo
-const CANDIDATE_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
-const FLASH_PAUSA_MS = 2 * 60 * 1000; // 2 minutos
+// Modelos compatibles con @google/genai en cascada de prioridad
+const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+const FLASH_PAUSA_MS = 30 * 1000; // 30 segundos
 let flashLentoHasta = 0;
 
 // Tiempos recientes de la IA (para el docente: /api/diagnostico-ia)
@@ -507,23 +512,32 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     // MINIMAL en pistas y conversación del ICFES, y LOW en todo lo demás (incluido socratico y solicitudes con googleSearch salvo tutor con cálculos).
     const nivelDeseado: 'MINIMAL' | 'LOW' | 'MEDIUM' = ligeroIcfes ? 'MINIMAL' : usarMedium ? 'MEDIUM' : 'LOW';
     const forzarLowPorModelo = new Set<string>();
-    const configPara = (nivel: 'MINIMAL' | 'LOW' | 'MEDIUM'): any => ({
-      ...configBase,
-      thinkingConfig: {
-        thinkingLevel: nivel as any,
-      },
-    });
+    const sinThinkingPorModelo = new Set<string>();
+    const configPara = (nivel: 'MINIMAL' | 'LOW' | 'MEDIUM' | null): any =>
+      nivel
+        ? {
+            ...configBase,
+            thinkingConfig: {
+              thinkingLevel: nivel as any,
+            },
+          }
+        : { ...configBase };
 
-    // Si gemini-flash-latest falló o se demoró en los últimos 2 minutos, va directo al respaldo gemini-flash-lite-latest sin esperar 12 s
     const flashEnPausa = Date.now() < flashLentoHasta;
     const modelsToTry = ligeroIcfes
-      ? ['gemini-flash-lite-latest', 'gemini-flash-latest']
+      ? ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest']
       : flashEnPausa
-      ? ['gemini-flash-lite-latest']
-      : ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+      ? ['gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash']
+      : ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
     if (flashEnPausa && !ligeroIcfes) {
-      console.log(`[Respaldo directo] gemini-flash-latest en pausa por lentitud/fallo reciente (${Math.ceil((flashLentoHasta - Date.now()) / 1000)} s restantes); usando gemini-flash-lite-latest con LOW`);
+      console.log(`[Respaldo directo] modelo principal en pausa (${Math.ceil((flashLentoHasta - Date.now()) / 1000)} s restantes); priorizando gemini-flash-latest`);
     }
+
+    const apiKey = obtenerLlaveIA();
+    if (!apiKey) {
+      console.error('[Key] No se encontró GEMINI_API_KEY ni API_KEY en las variables de entorno');
+    }
+    const ai = obtenerClienteIA();
 
     let lastError: any = null;
     let replyText: string | null = null;
@@ -646,9 +660,9 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
       // Si el primer texto no llega a tiempo (8,5 s en conversación normal; 11 s cuando lleva googleSearch o páginas PDF), pasa rápido al modelo de respaldo (gemini-flash-lite-latest con LOW).
       // Además, un temporizador total de 38 s evita que un stream congelado a mitad de respuesta deje colgada la interfaz.
       const controlador = new AbortController();
-      const limiteMs = llevaBusqueda || partesIcfes.length > 0 || archivosUltimoEst.length > 0 ? 11_000 : 8_500;
+      const limiteMs = llevaBusqueda || partesIcfes.length > 0 || archivosUltimoEst.length > 0 ? 28_000 : 22_000;
       const temporizador = setTimeout(() => controlador.abort(), limiteMs);
-      const temporizadorTotal = setTimeout(() => controlador.abort(), 38_000);
+      const temporizadorTotal = setTimeout(() => controlador.abort(), 65_000);
       const cfgConCorte = { ...cfg, abortSignal: controlador.signal };
       const tInicioFlujo = Date.now();
       try {
@@ -766,14 +780,16 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     let reintentado = false;
     for (let i = 0; i < modelsToTry.length; i++) {
       const model = modelsToTry[i];
-      // En el modelo de respaldo (gemini-flash-lite-latest fuera de pistas ICFES, o i > 0) o si se forzó LOW, se usa siempre LOW
-      const esRespaldoLite = model === 'gemini-flash-lite-latest' && !ligeroIcfes;
-      const nivelActual: 'MINIMAL' | 'LOW' | 'MEDIUM' =
-        i > 0 || esRespaldoLite || forzarLowPorModelo.has(model) ? 'LOW' : nivelDeseado;
+      const esRespaldoLite = model === 'gemini-3.1-flash-lite' && !ligeroIcfes;
+      const nivelActual: 'MINIMAL' | 'LOW' | 'MEDIUM' | null = sinThinkingPorModelo.has(model)
+        ? null
+        : i > 0 || esRespaldoLite || forzarLowPorModelo.has(model)
+        ? 'LOW'
+        : nivelDeseado;
       const config = configPara(nivelActual);
       try {
         const t0 = Date.now();
-        const response = await generar(model, config, nivelActual);
+        const response = await generar(model, config, nivelActual || 'DEFAULT');
         console.log(`[Tiempo] ${model} (${nivelActual}) -> ${(response as any).modelVersion || model} en ${Date.now() - t0} ms (busqueda: ${!!modo.busqueda})`);
 
         if (response.text) {
@@ -842,12 +858,11 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         }
       } catch (err: any) {
         lastError = err;
-        // Si el primer texto no llega en 12 s, pasa al modelo de respaldo (gemini-flash-lite-latest con LOW) y recuerda por 2 min
         if (err?.name === 'AbortError' || /abort/i.test(String(err?.message || ''))) {
-          if (model === 'gemini-flash-latest') {
+          if (model === 'gemini-3.8-flash') {
             flashLentoHasta = Date.now() + FLASH_PAUSA_MS;
           }
-          console.log(`[Lento] ${model} (${nivelActual}) no entregó el primer texto en 12 s; pasando al respaldo con LOW (pausa de 2 min activada)`);
+          console.log(`[Lento] ${model} (${nivelActual || 'DEFAULT'}) excedió el tiempo de espera; pasando al modelo de respaldo`);
           registrarTiempo({ modo: modeKey, modelo: model, lento: true });
           continue;
         }
@@ -882,10 +897,10 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
         }
 
         if (status === 404 || msgErr.includes('404')) {
-          if (model === 'gemini-flash-latest') {
+          if (model === 'gemini-3.8-flash') {
             flashLentoHasta = Date.now() + FLASH_PAUSA_MS;
           }
-          console.log(`Modelo ${model} no existe (404). Pasando al siguiente modelo...`);
+          console.log(`Modelo ${model} no disponible (404). Pasando al siguiente modelo...`);
           continue;
         }
 
@@ -899,20 +914,23 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
           continue;
         }
 
-        // Solo reintenta con thinkingLevel LOW cuando el error 400 mencione el nivel de razonamiento
-        if (
-          status === 400 &&
-          /thinking|reasoning|razonamiento/i.test(msgErr) &&
-          nivelActual !== 'LOW' &&
-          !forzarLowPorModelo.has(model)
-        ) {
-          forzarLowPorModelo.add(model);
-          console.log(`Nivel de razonamiento ${nivelActual} no aceptado en ${model}; reintentando con LOW...`);
-          i--;
-          continue;
+        // Reintentar con LOW o sin thinkingConfig ante error 400
+        if (status === 400) {
+          if (nivelActual && nivelActual !== 'LOW' && !forzarLowPorModelo.has(model)) {
+            forzarLowPorModelo.add(model);
+            console.log(`Nivel de razonamiento ${nivelActual} no aceptado en ${model}; reintentando con LOW...`);
+            i--;
+            continue;
+          }
+          if (nivelActual !== null && !sinThinkingPorModelo.has(model)) {
+            sinThinkingPorModelo.add(model);
+            console.log(`thinkingConfig no aceptado en ${model}; reintentando sin thinkingConfig...`);
+            i--;
+            continue;
+          }
         }
 
-        if (model === 'gemini-flash-latest') {
+        if (model === 'gemini-3.8-flash') {
           flashLentoHasta = Date.now() + FLASH_PAUSA_MS;
         }
         console.error(`Error con el modelo ${model}; se intenta con el siguiente:`, err?.message || err);
@@ -922,14 +940,13 @@ El estudiante ya vio este mensaje inicial tuyo: ${modo.saludo}`;
     // Si todos fallan por 429 en un modo con búsqueda, haz un último intento SIN la herramienta googleSearch
     if (!replyText && modo.busqueda && (had429 || lastError?.status === 429 || (typeof lastError?.message === 'string' && lastError.message.includes('429')))) {
       console.log('Los modelos con búsqueda fallaron por 429. Intentando fallback SIN googleSearch...');
-      const fallbackModels = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+      const fallbackModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
       for (const fbModel of fallbackModels) {
         try {
           const fallbackConfig: any = {
             systemInstruction: systemInstruction + "\n\nIMPORTANTE: en esta respuesta NO tienes acceso a la búsqueda en Google. No digas que buscaste ni que consultaste fuentes en línea. Responde solo con lo que sabes, aclara que puede estar desactualizado y, si es una verificación, escribe «Veredicto provisional» (o 'Sin evidencia suficiente'), cambia el título «Qué dicen las fuentes» por «Lo que se sabe (sin fuentes consultadas)» y no atribuyas datos a fuentes que no consultaste; en «Lectura lateral» indica dónde confirmarlo. No escribas ningún aviso ni nota sobre la falta de búsqueda: la aplicación ya muestra ese aviso al estudiante.",
             temperature: typeof modo.temperatura === 'number' ? modo.temperatura : 0.7,
             maxOutputTokens: (typeof modo.maxTokens === 'number' ? modo.maxTokens : 1000) + 1500,
-            thinkingConfig: { thinkingLevel: 'LOW' as any },
           };
 
           const fallbackResponse = await ai.models.generateContent({
@@ -1225,6 +1242,7 @@ app.get('/api/icfes/contenido/:id', async (req, res) => {
 
 // Prueba de velocidad de cada modelo (para el docente): /api/diagnostico-ia/probar
 app.get('/api/diagnostico-ia/probar', async (_req, res) => {
+  const ai = obtenerClienteIA();
   const lista = CANDIDATE_MODELS;
   const resultados = await Promise.all(
     lista.map(async (model) => {
@@ -1235,7 +1253,7 @@ app.get('/api/diagnostico-ia/probar', async (_req, res) => {
         const flujo = await ai.models.generateContentStream({
           model,
           contents: [{ role: 'user', parts: [{ text: 'Explica en 3 frases qué es una inferencia en un texto.' }] }],
-          config: { maxOutputTokens: 600, thinkingConfig: { thinkingLevel: 'LOW' as any }, abortSignal: ctl.signal } as any,
+          config: { maxOutputTokens: 600, abortSignal: ctl.signal } as any,
         });
         let primero = 0;
         for await (const _p of flujo) if (!primero) primero = Date.now() - t0;
