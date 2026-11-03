@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
               Liceo Superior Rafael Pombo
             </span>
             <span className="text-[13px] text-[var(--color-secundario)] leading-tight truncate">
-              Interlocutor Crítico{progreso?.tituloEquipado ? ` · ${progreso.tituloEquipado}` : ''}
+              MAIA{progreso?.tituloEquipado ? ` · ${progreso.tituloEquipado}` : ''}
             </span>
           </div>
         </div>

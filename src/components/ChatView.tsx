@@ -507,9 +507,9 @@ if (clave === 'tutor') return base;
 
   const descargarConversacion = () => {
     const fecha = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
-    const lineas: string[] = [`Interlocutor Crítico — ${modo.titulo}`, `Código: ${estudiante || ''}`, `Fecha: ${fecha}`, ''];
+    const lineas: string[] = [`MAIA — ${modo.titulo}`, `Código: ${estudiante || ''}`, `Fecha: ${fecha}`, ''];
     messages.forEach((m) => {
-      lineas.push(m.role === 'user' ? 'YO:' : 'INTERLOCUTOR CRÍTICO:');
+      lineas.push(m.role === 'user' ? 'YO:' : 'MAIA:');
       const listaArch = Array.isArray(m.archivos) && m.archivos.length > 0 ? m.archivos : m.archivo ? [m.archivo] : [];
       listaArch.forEach((a) => {
         lineas.push(`[${a.esEjemploClase ? 'Ejemplo de clase' : 'Archivo'}: ${a.nombre}]`);
@@ -1337,7 +1337,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                     Lo verifiqué por fuera
                   </h3>
                   <p className="text-[14px] text-[var(--color-secundario)] leading-relaxed mt-0.5">
-                    Cuéntale al interlocutor qué dato contrastaste en otra fuente.
+                    Cuéntale a MAIA qué dato contrastaste en otra fuente.
                   </p>
                 </div>
               </div>
